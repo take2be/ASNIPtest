@@ -178,7 +178,8 @@ VPS/Linux 默认直连，不走代理。
 
 ## 贡献者
 
-感谢原始作者 [e13815332](https://github.com/e13815332) 的实现基础。
+维护者：[take2be](https://github.com/take2be)  
+原始作者：[e13815332](https://github.com/e13815332)
 
 [![e13815332](https://github.com/e13815332.png?s=60)](https://github.com/e13815332)
 
