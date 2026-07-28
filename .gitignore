@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Cache & scan data (auto-generated)
+cache/
+scan_data/
+
+# Reports
+report.csv
+report.json
+
+# Large generated data files
+proxy_ips_*.csv
+proxy_ips_*.txt
+proxy_verify_*.csv
+scanner.jsonl
+test_*.txt
+test_*.txt
+
+# OS
+.DS_Store
+Thumbs.db
