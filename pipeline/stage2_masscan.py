@@ -160,14 +160,14 @@ def run_masscan(block_index: int, cidrs_file: str, ports: str,
     ]
 
     print(f"  🚀 Block {block_index}: masscan {ports} rate={rate}")
+    print(f"     日志: {out_tmp}")
     start = time.time()
 
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=3600)
+    result = subprocess.run(cmd, timeout=3600)
 
     elapsed = time.time() - start
     if result.returncode != 0:
         print(f"  ✗ Block {block_index}: masscan 失败 (rc={result.returncode})")
-        print(f"    stderr: {result.stderr[:200]}")
         return False
 
     # 检查输出文件
@@ -232,9 +232,10 @@ def run_verify(block_index: int, workdir: str, cf_scanner_path: str,
         cmd += ["-proxy", proxy]
 
     print(f"  🔍 Block {block_index}: cf-scanner 验证 (workers={workers})")
+    print(f"     日志: {out_txt}")
     start = time.time()
 
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
+    result = subprocess.run(cmd, timeout=1800)
 
     elapsed = time.time() - start
     if result.returncode != 0:
