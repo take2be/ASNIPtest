@@ -235,12 +235,9 @@ chmod +x "${INSTALL_DIR}/bin/asnip"
 chmod +x "${INSTALL_DIR}/bin/ips"
 
 # 清理可能残留的旧 broken symlink
-rm -f /usr/local/bin/asnip /usr/local/bin/ips 2>/dev/null || true
+rm -f /usr/local/bin/asnip /usr/local/bin/ips /usr/local/bin/irds /usr/local/bin/irds-result 2>/dev/null || true
 
-# 当前交互 shell 立刻生效
-export PATH="${INSTALL_DIR}/bin:$PATH"
-
-# ---- 注册 irds / irds-result 到 ~/.asnip/bin/（开箱即用，无需 source）----
+# 装到系统 PATH 目录，立即可用，不依赖 bashrc
 BIN_DIR="${INSTALL_DIR}/bin"
 mkdir -p "$BIN_DIR"
 
@@ -312,6 +309,10 @@ SCRIPT
 chmod +x "$BIN_DIR/irds-result"
 
 echo -e " ${GREEN}✅ irds / irds-result 已注册到 $BIN_DIR/${NC}"
+
+# 创建 system symlink，立即可用，不依赖 bashrc
+ln -sf "$BIN_DIR/irds" /usr/local/bin/irds 2>/dev/null || true
+ln -sf "$BIN_DIR/irds-result" /usr/local/bin/irds-result 2>/dev/null || true
 
 # ---- 完成 ----
 echo -e "${GREEN}${BOLD}========================================${NC}"

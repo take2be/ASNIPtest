@@ -7,10 +7,10 @@ INSTALL_DIR="${HOME}/.asnip"
 echo "🗑  ASNIPtest 卸载中..."
 
 # 删所有可能的命令入口
-rm -f /usr/local/bin/asnip 2>/dev/null || true
-rm -f "${HOME}/.local/bin/asnip" 2>/dev/null || true
+rm -f /usr/local/bin/asnip /usr/local/bin/ips /usr/local/bin/irds /usr/local/bin/irds-result 2>/dev/null || true
+rm -f "${HOME}/.local/bin/asnip" "${HOME}/.local/bin/irds" "${HOME}/.local/bin/irds-result" 2>/dev/null || true
 rm -f "${HOME}/bin/asnip" 2>/dev/null || true
-find /usr/local/bin -maxdepth 1 -name "asnip" \( -type l -o -type f \) -delete 2>/dev/null || true
+find /usr/local/bin -maxdepth 1 -name "asnip" -o -name "irds" -o -name "irds-result" \( -type l -o -type f \) -delete 2>/dev/null || true
 
 # 删二进制/缓存/data/config
 rm -rf "${INSTALL_DIR}/bin" 2>/dev/null || true
