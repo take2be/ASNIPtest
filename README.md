@@ -28,26 +28,25 @@
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/take2be/ASNIPtest/master/install.sh | bash
-source ~/.bashrc
 ```
 
-安装目录：`~/.asnip/`，命令：`asnip` / `ips` / `irds` / `irds-result`
+安装目录：`~/.asnip/`，命令自动注册到 `/usr/local/bin/`，装完即用。
 
 > Linux/VPS 默认直连。WSL 下首次运行会提示是否需要走代理。
 
 ### 一键卸载
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/take2be/ASNIPtest/master/uninstall.sh | bash && source ~/.bashrc
+curl -fsSL https://raw.githubusercontent.com/take2be/ASNIPtest/master/uninstall.sh | bash
 ```
 
-卸载会清理：安装目录 `~/.asnip` + 命令 + 缓存。
+卸载会清理：安装目录 `~/.asnip` + 全局命令 + 缓存。
 
 ## 常用命令
 
 ```bash
 # 安装
-curl -fsSL https://raw.githubusercontent.com/take2be/ASNIPtest/master/install.sh | bash && source ~/.bashrc
+curl -fsSL https://raw.githubusercontent.com/take2be/ASNIPtest/master/install.sh | bash
 
 # 启动扫描（自动后台 + 自动续跑 + 自动进入进度界面）
 irds <ASN>
@@ -166,7 +165,6 @@ http://<your-vps-ip>:8080/report.json
 ```bash
 rm -rf ~/.asnip
 curl -fsSL https://raw.githubusercontent.com/take2be/ASNIPtest/master/install.sh | bash
-source ~/.bashrc
 ```
 
 ### masscan 报错 Permission denied？
