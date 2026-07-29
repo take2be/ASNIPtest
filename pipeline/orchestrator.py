@@ -94,9 +94,9 @@ class Orchestrator:
         os.replace(tmp_path, plan_path)
 
         # 写各 block CIDR 文件
-        for i in range(0, len(prefixes), 500):
-            chunk = prefixes[i:i + 500]
-            blk_idx = i // 500 + 1
+        for i in range(0, len(prefixes), 50):
+            chunk = prefixes[i:i + 50]
+            blk_idx = i // 50 + 1
             cidrs_file = os.path.join(self.scan_dir, f"block_{blk_idx:03d}_cidrs.txt")
             with open(cidrs_file, "w") as f:
                 f.write("\n".join(chunk) + "\n")

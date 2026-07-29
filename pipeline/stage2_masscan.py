@@ -7,6 +7,8 @@
   - IP:Port 级 Resume
   - 水位/背压
 """
+import hashlib
+import json
 import os
 import re
 import shutil
@@ -36,7 +38,7 @@ def make_ports_hash(ports_str: str) -> str:
 
 
 def generate_plan(asn: int, prefixes: list[str], ports: str = DEFAULT_PORTS,
-                  block_size: int = 500) -> dict:
+                  block_size: int = 50) -> dict:
     """生成 scan_plan.json（一次性全量规划）。"""
     # 确定 block 划分（纯输入驱动，不依赖运行时）
     blocks = []
