@@ -56,9 +56,13 @@ class Orchestrator:
 
     def _find_cf_scanner(self) -> str:
         """找 cf-scanner 二进制。"""
+        install_src = os.path.join(
+            os.path.expanduser("~/.asnip"), "src")
         candidates = [
             os.path.join(self.workdir, "cf-scanner"),
             os.path.join(self.workdir, "cf-scanner.exe"),
+            os.path.join(install_src, "cf-scanner"),
+            os.path.join(install_src, "cf-scanner.exe"),
             "/usr/local/bin/cf-scanner",
         ]
         for c in candidates:
