@@ -240,31 +240,27 @@ rm -f /usr/local/bin/asnip /usr/local/bin/ips 2>/dev/null || true
 # 当前交互 shell 立刻生效
 export PATH="${INSTALL_DIR}/bin:$PATH"
 
-# ---- 注册 irds / irds-result 到 ~/.asnip/bin/（开箱即用，无需 source） ----
+# ---- 注册 irds / irds-result 到 ~/.asnip/bin/（开箱即用，无需 source）----
 BIN_DIR="${INSTALL_DIR}/bin"
 mkdir -p "$BIN_DIR"
 
-# irds 脚本
 cat > "$BIN_DIR/irds" << 'SCRIPT'
 #!/usr/bin/env bash
 args="$*"
-# 先清理可能残留的旧 asnip session
+# 先杀旧 asnip session，避免堵路
 if command -v screen >/dev/null 2>&1; then
-    screen -ls | grep -oE '[0-9]+\.asnip' | cut -d. -f1 | xargs -r kill -9 2>/dev/null || true
+    screen -ls | grep -qE '[0-9]+\.asnip' && screen -X -S asnip quit 2>/dev/null || true
 fi
 if command -v tmux >/dev/null 2>&1; then
     tmux has-session -t asnip 2>/dev/null && tmux kill-session -t asnip 2>/dev/null || true
 fi
 runner=""
-if command -v screen >/dev/null 2>&1; then
-    runner="screen"
-elif command -v tmux >/dev/null 2>&1; then
-    runner="tmux"
-else
-    echo "  未检测到 screen/tmux，直接前台运行 --daemon"
+command -v screen >/dev/null 2>&1 && runner=screen || command -v tmux >/dev/null 2>&1 && runner=tmux
+if [ -z "$runner" ]; then
     exec ips --daemon $args
 fi
-inner_cmd="trap '' HUP; while true; do ips --daemon $args; code=\$?; if [ \$code -eq 0 ]; then if [ -f \"${HOME}/.asnip/src/scan_data/report.csv\" ]; then echo \"报告文件已生成: ${HOME}/.asnip/src/scan_data/report.csv\"; break; fi; fi; echo \"上次执行结束(exit=\$code)且未见 report.csv，10秒后自动续跑...\"; sleep 10; done"
+# daemon 循环：直到 report.csv 生成
+inner_cmd="trap '' HUP; while true; do ips --daemon $args; code=\$?; if [ \$code -eq 0 ] && [ -f \"\${HOME}/.asnip/src/scan_data/report.csv\" ]; then echo \"report.csv ready\"; break; fi; echo \"retry in 10s...\"; sleep 10; done"
 if [ "$runner" = "screen" ]; then
     screen -dmS asnip bash -c "$inner_cmd"
     sleep 0.5
@@ -273,14 +269,9 @@ else
     tmux new-session -d -s asnip bash -c "$inner_cmd"
     tmux attach -t asnip
 fi
-disown 2>/dev/null || true
-echo "  已在后台启动(screen session: asnip，daemon 守护模式)"
-echo "  看进度: screen -r asnip      (Ctrl+A D  detached 返回)"
-echo "  查结果: irds-result"
 SCRIPT
 chmod +x "$BIN_DIR/irds"
 
-# irds-result 脚本
 cat > "$BIN_DIR/irds-result" << 'SCRIPT'
 #!/usr/bin/env bash
 rpt=""
@@ -288,33 +279,30 @@ if [ -d "${HOME}/.asnip/src/scan_data" ]; then
     rpt=$(find "${HOME}/.asnip/src/scan_data" -maxdepth 1 -name "report.csv" -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -1 | cut -d' ' -f2-)
 fi
 if [ -z "$rpt" ] || [ ! -f "$rpt" ]; then
-    echo "  尚未找到 report.csv"
+    echo "尚未找到 report.csv"
     exit 1
 fi
-echo "  报告: $rpt"
+echo "报告: $rpt"
 python3 - "$rpt" << 'PY'
 import csv, sys
 p = sys.argv[1]
 rows = []
 with open(p, newline='', encoding='utf-8', errors='replace') as f:
-    reader = csv.DictReader(f)
-    for r in reader:
+    for r in csv.DictReader(f):
         rows.append(r)
 if not rows:
-    print("  空报告")
+    print("空报告")
     sys.exit(0)
 valid = [r for r in rows if r.get('Latency_ms','-') not in ('-','')]
-print(f"  总行: {len(rows)}，有效: {len(valid)}")
+print(f"总行: {len(rows)}，有效: {len(valid)}")
 if valid:
     valid_sorted = sorted(valid, key=lambda r: (float(r.get('Latency_ms', 99999) or 99999), -float(r.get('Download_Mbps', 0) or 0)))
-    print("  Top 10 可用:")
-    print("  %-18s %-8s %10s %12s %10s" % ("IP:PORT", "Country", "Latency", "Download", "Org"))
+    print("Top 10 可用:")
+    print("%-18s %-10s %8s %10s %10s" % ("IP:PORT", "Country", "Latency", "Download", "Org"))
     for r in valid_sorted[:10]:
-        ip = r.get('IP','?')
-        port = r.get('PORT','?')
-        print("  %-18s %-8s %8sms %10sMbps %10s" % (
-            f"{ip}:{port}",
-            r.get('Country','-')[:8],
+        print("%-18s %-10s %8sms %9sMbps %10s" % (
+            f"{r.get('IP','?')}:{r.get('PORT','?')}",
+            (r.get('Country','-')[:10] or '-'),
             r.get('Latency_ms','-'),
             r.get('Download_Mbps', 0),
             (r.get('Org','-')[:10] or '-'),
