@@ -48,14 +48,14 @@ curl -fsSL https://raw.githubusercontent.com/take2be/ASNIPtest/master/uninstall.
 ### 推荐：自动续跑守护模式
 
 ```bash
-irds 40065
+irds <ASN>
 ```
 
 或任意 ASN：
 
 ```bash
 irds 13335,209554
-irds 40065,209554
+irds 209554,13335
 ```
 
 `irds` 会在后台循环运行，直到生成完整报告为止。SSH 断线后也会自动续跑。
@@ -69,9 +69,9 @@ irds-result
 ### 直接指定 ASN（单次）
 
 ```bash
-asnip scan 40065
+asnip scan <ASN>
 # 或快捷命令
-ips 40065
+ips <ASN>
 ```
 
 ### 指定端口
@@ -83,13 +83,13 @@ irds 13335,209554 --ports 443,8443
 ### 强制刷新缓存
 
 ```bash
-irds 40065 --force
+irds <ASN> --force
 ```
 
 ### 只输出前 N 个结果
 
 ```bash
-irds 40065 --top 20
+irds <ASN> --top 20
 ```
 
 ### 跳过测速
@@ -97,7 +97,9 @@ irds 40065 --top 20
 默认跳过测速，想要测速在交互模式下选 `y`，或：
 
 ```bash
-asnip scan 40065
+asnip scan 400618
+# 或快捷命令
+ips 400618
 ```
 
 扫描完成后自动生成：
