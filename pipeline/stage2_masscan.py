@@ -7,13 +7,13 @@
   - IP:Port 级 Resume
   - 水位/背压
 """
-import hashlib
-import json
 import os
+import re
 import shutil
 import subprocess
 import sys
 import time
+import threading
 from pathlib import Path
 
 from .utils import ensure_dirs, CACHE_DIR
@@ -149,6 +149,12 @@ def run_masscan(block_index: int, cidrs_file: str, ports: str,
 
     out_tmp = os.path.join(workdir, f"block_{block_index:03d}.json.tmp")
     out_final = os.path.join(workdir, f"block_{block_index:03d}.json")
+    targets_tmp = os.path.join(workdir, f"block_{block_index:03d}_targets.txt.tmp")
+    targets_file = os.path.join(workdir, f"block_{block_index:03d}_targets.txt")
+
+    # 预先建立合法空 JSON，避免流式读取时报错
+    with open(out_tmp, "w") as f:
+        f.write("[]\n")
 
     cmd = [
         "masscan",
@@ -174,31 +180,47 @@ def run_masscan(block_index: int, cidrs_file: str, ports: str,
     # 仅在实际发现端口数变化时更新显示，避免刷屏
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
     last_found = ""
+    _seen = set()
+    append_lock = threading.Lock()
     try:
-        for line in proc.stdout:
-            line = line.rstrip()
-            if "rate:" in line and "kpps" in line and "found=" in line:
-                try:
-                    after_rate = line.split("rate:", 1)[1].strip()
-                    rate_str = after_rate.split(",", 1)[0].strip()
-                    found_str = line.split("found=", 1)[1].strip()
-                except Exception:
-                    continue
-                # 计算 block 进度: 已输出目标数 / CIDR 总段数
-                done_targets = 0
-                if os.path.exists(out_txt):
-                    with open(out_txt) as f:
-                        done_targets = sum(1 for l in f if l.strip() and not l.startswith("ip,"))
-                block_str = ""
-                if total_targets > 0:
-                    block_pct = min(done_targets / total_targets, 1.0)
-                    block_str = f"  block={block_pct*100:.0f}%"
-                display = f"\r  ⏳ 命中={found_str}{block_str}  速率={rate_str}"
-                display = display.encode('utf-8', errors='replace').decode('utf-8', errors='replace')
-                if found_str != last_found:
-                    sys.stdout.write(display)
-                    sys.stdout.flush()
-                    last_found = found_str
+        with open(targets_tmp, "w") as _f_tmp:
+            with open(out_tmp, "w") as _f_json:
+                for line in proc.stdout:
+                    _f_json.write(line)
+                    _f_json.flush()
+                    line = line.rstrip()
+                    try:
+                        obj = json.loads(line)
+                        for entry in obj:
+                            ip = entry.get("ip")
+                            if not ip:
+                                continue
+                            for p in entry.get("ports", []):
+                                port = p.get("port")
+                                if port:
+                                    key = f"{ip}:{port}"
+                                    with append_lock:
+                                        if key not in _seen:
+                                            _seen.add(key)
+                                            _f_tmp.write(f"{ip}:{port}\n")
+                                            _f_tmp.flush()
+                    except Exception:
+                        pass
+                    m = re.search(r"rate:\s+([0-9.]+)-kpps.*found=(\d+)", line)
+                    if m:
+                        rate_str = m.group(1).strip()
+                        found_str = m.group(2).strip()
+                        done_targets = sum(1 for l in open(targets_tmp) if l.strip()) if os.path.exists(targets_tmp) else 0
+                        block_str = ""
+                        if total_targets > 0:
+                            block_pct = min(done_targets / total_targets, 1.0)
+                            block_str = f"  block={block_pct*100:.0f}%"
+                        display = f"\r  ⏳ 命中={found_str}{block_str}  速率={rate_str}-kpps"
+                        display = display.encode('utf-8', errors='replace').decode('utf-8', errors='replace')
+                        if found_str != last_found:
+                            sys.stdout.write(display)
+                            sys.stdout.flush()
+                            last_found = found_str
     except KeyboardInterrupt:
         proc.terminate()
         try:
@@ -256,9 +278,14 @@ def run_verify(block_index: int, workdir: str, cf_scanner_path: str,
     cf_scanner_abs = os.path.abspath(cf_scanner_path)
 
     # cf-scanner 要的输入是「每行 IP:port」纯文本，不是 masscan JSON
-    # 先从 masscan JSON 提取 ip:port 列表
+    # 优先使用流式生成的 targets_tmp（断点续跑核心），回退到批量提取
     targets_file = os.path.join(workdir, f"block_{block_index:03d}_targets.txt")
-    _extract_targets_from_masscan(json_file, targets_file)
+    targets_tmp = os.path.join(workdir, f"block_{block_index:03d}_targets.txt.tmp")
+    if os.path.exists(targets_tmp) and os.path.getsize(targets_tmp) > 0:
+        shutil.copyfile(targets_tmp, targets_file)
+        print(f"  ⏩ Block {block_index}: 使用流式缓存 targets ({sum(1 for _ in open(targets_file))} 条)")
+    else:
+        _extract_targets_from_masscan(json_file, targets_file)
     if os.path.getsize(targets_file) == 0:
         # 没有开放端口，直接写空结果
         with open(out_txt, "w") as f:
