@@ -270,14 +270,39 @@ def _is_wsl() -> bool:
         return False
 
 
-def _estimate_prefixes(asn: int, proxies: dict | None = None) -> int:
-    """预估 ASN 的 CIDR 段数（快速试探）。"""
+def _get_public_ip() -> str | None:
+    """获取公网出口 IP，多 API 多重兜底。"""
+    apis = [
+        "https://api.ipify.org",
+        "https://api-ipv4.ip.sb/ip",
+        "https://ifconfig.me/ip",
+        "https://icanhazip.com",
+    ]
+    import urllib.request
+    for url in apis:
+        try:
+            with urllib.request.urlopen(url, timeout=5) as r:
+                ip = r.read().decode().strip()
+                parts = ip.split(".")
+                if len(parts) == 4 and all(p.isdigit() and 0 <= int(p) <= 255 for p in parts):
+                    return ip
+        except Exception:
+            continue
+    return None
+
+
+def _get_lan_ip() -> str | None:
+    """获取本机局域网 IP。"""
     try:
-        from pipeline.stage1_cidr import _fetch_single
-        prefixes = _fetch_single(asn, force=True, proxies=proxies)
-        return len(prefixes) if prefixes else 0
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.settimeout(2)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
     except Exception:
-        return 0
+        pass
+    return None
 
 
 def _serve_results(port: int = 8080):
@@ -288,16 +313,11 @@ def _serve_results(port: int = 8080):
     # 获取 LAN IP
     lan_ip = _get_lan_ip()
 
-    # 获取公网 IP（异步，不阻塞）
+    # 异步获取公网 IP
     public_ip = None
     def _fetch_public():
         nonlocal public_ip
-        try:
-            import urllib.request
-            with urllib.request.urlopen("https://api.ipify.org", timeout=5) as r:
-                public_ip = r.read().decode().strip()
-        except Exception:
-            pass
+        public_ip = _get_public_ip()
     t = threading.Thread(target=_fetch_public, daemon=True)
     t.start()
 
@@ -352,20 +372,6 @@ def _serve_results(port: int = 8080):
     except KeyboardInterrupt:
         print("\n  服务已停止")
         server.shutdown()
-
-
-def _get_lan_ip() -> str | None:
-    """获取本机局域网 IP。"""
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.settimeout(2)
-        s.connect(("8.8.8.8", 80))
-        ip = s.getsockname()[0]
-        s.close()
-        return ip
-    except Exception:
-        pass
-    return None
 
 
 def _link(url: str, text: str | None = None) -> str:
