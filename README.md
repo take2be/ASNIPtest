@@ -43,6 +43,22 @@ curl -fsSL https://raw.githubusercontent.com/take2be/ASNIPtest/master/uninstall.
 
 卸载会清理：安装目录 `~/.asnip` + 命令 + 缓存。
 
+## 常用命令
+
+```bash
+# 安装
+curl -fsSL https://raw.githubusercontent.com/take2be/ASNIPtest/master/install.sh | bash && source ~/.bashrc
+
+# 启动扫描（自动后台 + 自动续跑 + 自动进入进度界面）
+irds <ASN>
+
+# 看进度：默认已自动进入 screen；detach 回主 shell 用 Ctrl+A D
+# 再接回进度：screen -r asnip
+
+# 查最终可用 IP 汇总
+irds-result
+```
+
 ## 使用
 
 ### 推荐：自动续跑守护模式
