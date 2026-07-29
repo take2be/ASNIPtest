@@ -163,6 +163,14 @@ def run_masscan(block_index: int, cidrs_file: str, ports: str,
     print(f"  🚀 Block {block_index}: masscan {ports} rate={rate}")
     start = time.time()
 
+    # 基于输出文件行数计算 m/n 进度
+    if os.path.exists(cidrs_path):
+        with open(cidrs_path) as f:
+            lines = [l.strip() for l in f if l.strip()]
+        total_targets = len(lines)
+    else:
+        total_targets = 0
+
     # 仅在实际发现端口数变化时更新显示，避免刷屏
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
     last_found = ""
@@ -171,11 +179,24 @@ def run_masscan(block_index: int, cidrs_file: str, ports: str,
             line = line.rstrip()
             if "rate:" in line and "kpps" in line and "found=" in line:
                 try:
+                    after_rate = line.split("rate:", 1)[1].strip()
+                    rate_str = after_rate.split(",", 1)[0].strip()
                     found_str = line.split("found=", 1)[1].strip()
                 except Exception:
                     continue
+                # 计算 block 进度: 已输出目标数 / CIDR 总段数
+                done_targets = 0
+                if os.path.exists(out_txt):
+                    with open(out_txt) as f:
+                        done_targets = sum(1 for l in f if l.strip() and not l.startswith("ip,"))
+                block_str = ""
+                if total_targets > 0:
+                    block_pct = min(done_targets / total_targets, 1.0)
+                    block_str = f"  block={block_pct*100:.0f}%"
+                display = f"\r  ⏳ 命中={found_str}{block_str}  速率={rate_str}"
+                display = display.encode('utf-8', errors='replace').decode('utf-8', errors='replace')
                 if found_str != last_found:
-                    sys.stdout.write(f"\r  ⏳ 扫描中: 命中={found_str}")
+                    sys.stdout.write(display)
                     sys.stdout.flush()
                     last_found = found_str
     except KeyboardInterrupt:
