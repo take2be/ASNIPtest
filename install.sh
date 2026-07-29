@@ -248,7 +248,9 @@ cat > "$BIN_DIR/irds" << 'SCRIPT'
 args="$*"
 # 先杀旧 asnip session，避免堵路
 if command -v screen >/dev/null 2>&1; then
-    screen -ls | grep -qE '[0-9]+\.asnip' && screen -X -S asnip quit 2>/dev/null || true
+    screen -ls 2>/dev/null | grep -oE '[0-9]+\.asnip' | while read s; do
+        screen -X -S "$s" quit 2>/dev/null || true
+    done
 fi
 if command -v tmux >/dev/null 2>&1; then
     tmux has-session -t asnip 2>/dev/null && tmux kill-session -t asnip 2>/dev/null || true
