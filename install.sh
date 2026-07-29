@@ -256,7 +256,11 @@ if command -v tmux >/dev/null 2>&1; then
     tmux has-session -t asnip 2>/dev/null && tmux kill-session -t asnip 2>/dev/null || true
 fi
 runner=""
-command -v screen >/dev/null 2>&1 && runner=screen || command -v tmux >/dev/null 2>&1 && runner=tmux
+if command -v screen >/dev/null 2>&1; then
+    runner=screen
+elif command -v tmux >/dev/null 2>&1; then
+    runner=tmux
+fi
 if [ -z "$runner" ]; then
     exec "${HOME}/.asnip/bin/ips" $args --daemon
 fi
