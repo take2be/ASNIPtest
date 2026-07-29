@@ -138,17 +138,16 @@ def cmd_scan(args):
     # ---- 端口输入 ----
     ports = args.ports
     if not ports:
-        raw = input(f"  输入端口（回车默认: {DEFAULT_PORTS}）: ").strip()
-        ports = raw if raw else DEFAULT_PORTS
+        ports = DEFAULT_PORTS
     print(f"  → 端口: {ports}")
     print()
 
-    # ---- 代理（仅 WSL）----
+    # ---- 代理（仅 VPS 无交互；daemon 模式必跳过）----
     is_wsl = _is_wsl()
     proxies = None
     verify_proxy = None
 
-    if is_wsl:
+    if is_wsl and not args.daemon:
         print("  🌐 检测到 WSL 环境")
         use = input("  是否需要走代理？（y/N）: ").strip().lower()
         if use in ("y", "yes"):
@@ -164,7 +163,7 @@ def cmd_scan(args):
 
     # ---- 测速询问 ----
     do_speed = False
-    if not args.top and not args.json:
+    if not args.top and not args.json and not args.daemon:
         use_speed = input("  是否测速？(y/n，默认跳过): ").strip().lower()
         do_speed = use_speed in ("y", "yes")
     speed_top = None if not do_speed else 0
@@ -178,8 +177,8 @@ def cmd_scan(args):
 
     if args.daemon:
         # 后台循环：直到 report.csv 生成才退出
-        import signal
-        signal.signal(signal.SIGINT, signal.SIG_DFL)
+        # 注意：保留 Python 默认的 KeyboardInterrupt 捕获，
+        # 让 _serve_results 的 serve_forever() 能响应 Ctrl+C
         import atexit
         @atexit.register
         def _on_exit():
@@ -200,10 +199,8 @@ def cmd_scan(args):
                 break
             print("\n  报告未生成，10 秒后自动续跑...")
             time.sleep(10)
-        # daemon 模式下也要启动 HTTP 下载服务，之前这里直接 return 导致
-        # irds 跑完从来没有下载链接
+        # daemon 模式下也要启动 HTTP 下载服务，去掉 return 让 _serve_results 阻塞主线程
         _serve_results(port=args.port)
-        return
 
     app.run(
         asns=asns,
@@ -215,10 +212,8 @@ def cmd_scan(args):
         rate=args.rate,
     )
 
-    # ---- 启动结果 HTTP 服务 ----
-    report_csv = os.path.join(PROJECT_DIR, "report.csv")
-    if os.path.exists(report_csv) and os.path.getsize(report_csv) > 100:
-        _serve_results(port=args.port)
+    # ---- 启动结果 HTTP 服务（非 daemon 模式）----
+    _serve_results(port=args.port)
 
 
 def _print_system_info():
@@ -330,10 +325,8 @@ def _serve_results(port: int = 8080):
     t = threading.Thread(target=_fetch_public, daemon=True)
     t.start()
 
-    # 启动 HTTP 服务（后台线程）
+    # 启动 HTTP 服务（直接阻塞主线程）
     server = HTTPServer(("0.0.0.0", port), _DownloadHandler)
-    t_server = threading.Thread(target=server.serve_forever, daemon=True)
-    t_server.start()
 
     # 等待公网 IP 获取（最多等 3s）
     t.join(timeout=3)
@@ -374,13 +367,11 @@ def _serve_results(port: int = 8080):
     print(f"  按 Ctrl+C 停止服务")
     print()
 
-    # 保持主进程
     try:
-        while True:
-            time.sleep(1)
+        server.serve_forever()
     except KeyboardInterrupt:
         print("\n  服务已停止")
-        server.shutdown()
+        server.server_close()
 
 
 def _link(url: str, text: str | None = None) -> str:
