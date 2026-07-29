@@ -7,7 +7,9 @@
 - 六阶段全自动管线：CIDR 获取 → masscan 端口发现 → cf-scanner 验证 → ASN 去官方 → 直连测速 → 导出报告
 - **一键安装**：自动装系统依赖（Python/pip/masscan/cf-scanner）
 - WSL / Linux / macOS 跨平台
-- 断点续跑，Block 级 Resume
+- 50 段 mini-block 流水线，断点续跑，IP:PORT 流式缓存
+- `irds <ASN>` 一键守护扫描，SSH 断线自动续跑，直到出报告
+- `irds-result` 直接查看最近一次可用 IP 汇总
 - 输出 CSV + JSON，自动启动 HTTP 下载服务
 
 ## 快速开始
@@ -26,11 +28,12 @@
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/take2be/ASNIPtest/master/install.sh | bash
+source ~/.bashrc
 ```
 
-安装目录：`~/.asnip/`，命令：`asnip`
+安装目录：`~/.asnip/`，命令：`asnip` / `ips` / `irds` / `irds-result`
 
-> WSL 下会提示是否需要走代理，Linux/VPS 默认直连。
+> Linux/VPS 默认直连。WSL 下首次运行会提示是否需要走代理。
 
 ### 一键卸载
 
@@ -38,79 +41,64 @@ curl -fsSL https://raw.githubusercontent.com/take2be/ASNIPtest/master/install.sh
 curl -fsSL https://raw.githubusercontent.com/take2be/ASNIPtest/master/uninstall.sh | bash
 ```
 
-卸载会清理：安装目录 `~/.asnip` + `asnip` 命令 + 缓存。
+卸载会清理：安装目录 `~/.asnip` + 命令 + 缓存。
 
 ## 使用
 
-### 交互模式
+### 推荐：自动续跑守护模式
 
 ```bash
-asnip scan
-# 或快捷命令
-ips
+irds 40065
 ```
 
-流程：
-
-1. 输入 ASN（例如：`13335,209554`）
-2. 输入端口（回车默认：`443` `8443` `2053` `2083` `2087` `2096`）
-3. WSL 下提示是否走代理；Linux 默认直连
-4. 询问是否测速（测速较慢，默认跳过）
-
-### 直接指定 ASN
+或任意 ASN：
 
 ```bash
-asnip scan 400618
-# 或
-ips 400618
+irds 13335,209554
+irds 40065,209554
+```
+
+`irds` 会在后台循环运行，直到生成完整报告为止。SSH 断线后也会自动续跑。
+
+查看结果：
+
+```bash
+irds-result
+```
+
+### 直接指定 ASN（单次）
+
+```bash
+asnip scan 40065
+# 或快捷命令
+ips 40065
 ```
 
 ### 指定端口
 
 ```bash
-asnip scan 13335 --ports 443,8443
+irds 13335,209554 --ports 443,8443
 ```
 
 ### 强制刷新缓存
 
 ```bash
-asnip scan 400618 --force
+irds 40065 --force
 ```
 
 ### 只输出前 N 个结果
 
 ```bash
-asnip scan 400618 --top 20
+irds 40065 --top 20
 ```
 
-### 跳过依赖检查
+### 跳过测速
+
+默认跳过测速，想要测速在交互模式下选 `y`，或：
 
 ```bash
-asnip scan 400618 --no-deps
+asnip scan 40065
 ```
-
-### 后台运行（Linux VPS）
-
-```bash
-# 安装 screen（如未装）
-apt update && apt install -y screen
-
-# 开新窗口运行
-screen -dmS asnip bash -c 'asnip scan 400618 > ~/asnip.log 2>&1'
-
-# 查看日志
-tail -f ~/asnip.log
-
-# 回到窗口
-screen -r asnip
-```
-
-`ips` 命令同样可用，例如：
-```bash
-screen -dmS asnip bash -c 'ips 400618 > ~/asnip.log 2>&1'
-```
-
-退出 screen 用 `Ctrl+A D`。
 
 扫描完成后自动生成：
 
@@ -140,7 +128,7 @@ http://<your-vps-ip>:8080/report.json
 
 ```
 1/6 ASN → CIDR        RIPEStat/BGPView，取 IPv4，去重，过滤不可扫网段
-2/6 masscan + 3/6 verify  全端口 SYN 扫描 + cf-scanner 验证
+2/6 masscan + 3/6 verify  50 段 mini-block 流水线，扫出即验，流式缓存 IP:PORT
 4/6 enrich            ip-api / cymru 补 ASN+国家，过滤 Cloudflare 官方 13 个 ASN
 5/6 speedtest         TCP connect → TLS handshake → HTTP Range 下载测速
 6/6 output           合并 enrich + speed，输出 CSV/JSON，启动 HTTP 服务
@@ -160,6 +148,7 @@ http://<your-vps-ip>:8080/report.json
 ```bash
 rm -rf ~/.asnip
 curl -fsSL https://raw.githubusercontent.com/take2be/ASNIPtest/master/install.sh | bash
+source ~/.bashrc
 ```
 
 ### masscan 报错 Permission denied？
@@ -176,7 +165,7 @@ sudo setcap cap_net_raw+ep $(which masscan)
 
 ### 代理怎么设？
 
-仅 WSL 环境需要。脚本会询问代理地址，默认 `127.0.0.1:10808`。
+仅 WSL 环境需要。首次运行脚本会询问代理地址，默认 `127.0.0.1:10808`。
 
 VPS/Linux 默认直连，不走代理。
 
@@ -186,7 +175,7 @@ VPS/Linux 默认直连，不走代理。
 
 ## 贡献者
 
-维护者：[take2be](https://github.com/take2be)  
+维护者：[take2be](https://github.com/take2be)
 原始作者：[e13815332](https://github.com/e13815332)
 
 [![e13815332](https://github.com/e13815332.png?s=60)](https://github.com/e13815332)
