@@ -154,7 +154,7 @@ def run_masscan(block_index: int, cidrs_file: str, ports: str,
     targets_tmp = os.path.join(workdir, f"block_{block_index:03d}_targets.txt.tmp")
     targets_file = os.path.join(workdir, f"block_{block_index:03d}_targets.txt")
 
-    # 预先建立合法空 JSON，避免流式读取时报错
+    # 预先建立合法空 JSON
     with open(out_tmp, "w") as f:
         f.write("[]\n")
 
@@ -171,46 +171,40 @@ def run_masscan(block_index: int, cidrs_file: str, ports: str,
     print(f"  🚀 Block {block_index}: masscan {ports} rate={rate}")
     start = time.time()
 
-    # 基于输出文件行数计算 m/n 进度
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
     last_found = ""
     _seen = set()
     append_lock = threading.Lock()
     try:
         with open(targets_tmp, "w") as _f_tmp:
-            with open(out_tmp, "w") as _f_json:
-                for line in proc.stdout:
-                    _f_json.write(line)
-                    _f_json.flush()
-                    line = line.rstrip()
+            # masscan 通过 -oJ 直接写 JSON 到文件，stdout 只有状态行
+            # 定期从 JSON 文件增量读取已发现的 IP:Port
+            last_json_size = 0
+            poll_time = time.time()
+            for line in proc.stdout:
+                line = line.rstrip()
+                m = re.search(r"rate:\s+([0-9.]+)-kpps,\s+([0-9.]+)%\s+done.*found=(\d+)", line)
+                if m:
+                    rate_str = m.group(1).strip()
+                    done_str = m.group(2).strip()
+                    found_str = m.group(3).strip()
+                    display = f"\r  ⏳ {done_str}%  命中={found_str}  速率={rate_str}-kpps"
+                    display = display.encode('utf-8', errors='replace').decode('utf-8', errors='replace')
+                    if found_str != last_found:
+                        sys.stdout.write(display)
+                        sys.stdout.flush()
+                        last_found = found_str
+                # 每秒尝试从 JSON 文件读新 IP（增量）
+                now = time.time()
+                if now - poll_time >= 1.0:
+                    poll_time = now
                     try:
-                        obj = json.loads(line)
-                        for entry in obj:
-                            ip = entry.get("ip")
-                            if not ip:
-                                continue
-                            for p in entry.get("ports", []):
-                                port = p.get("port")
-                                if port:
-                                    key = f"{ip}:{port}"
-                                    with append_lock:
-                                        if key not in _seen:
-                                            _seen.add(key)
-                                            _f_tmp.write(f"{ip}:{port}\n")
-                                            _f_tmp.flush()
-                    except Exception:
-                        pass
-                    m = re.search(r"rate:\s+([0-9.]+)-kpps,\s+([0-9.]+)%\s+done.*found=(\d+)", line)
-                    if m:
-                        rate_str = m.group(1).strip()
-                        done_str = m.group(2).strip()
-                        found_str = m.group(3).strip()
-                        display = f"\\r  ⏳ {done_str}%  命中={found_str}  速率={rate_str}-kpps"
-                        display = display.encode('utf-8', errors='replace').decode('utf-8', errors='replace')
-                        if found_str != last_found:
-                            sys.stdout.write(display)
-                            sys.stdout.flush()
-                            last_found = found_str
+                        cur_size = os.path.getsize(out_tmp)
+                    except OSError:
+                        cur_size = 0
+                    if cur_size > last_json_size:
+                        _extract_new_targets(out_tmp, _f_tmp, _seen, append_lock)
+                        last_json_size = cur_size
     except KeyboardInterrupt:
         proc.terminate()
         try:
@@ -402,3 +396,28 @@ def _extract_targets_from_masscan(json_file: str, targets_file: str):
     with open(targets_file, "w") as f:
         if targets:
             f.write("\n".join(targets) + "\n")
+
+
+def _extract_new_targets(json_path: str, out_fp, seen: set, lock: threading.Lock):
+    """增量读取 masscan JSON 文件中的新 IP:Port，追加到 out_fp。"""
+    try:
+        with open(json_path) as f:
+            content = f.read().strip()
+        if not content or content == "[]":
+            return
+        data = json.loads(content)
+        for entry in data:
+            ip = entry.get("ip")
+            if not ip:
+                continue
+            for p in entry.get("ports", []):
+                port = p.get("port")
+                if port:
+                    key = f"{ip}:{port}"
+                    with lock:
+                        if key not in seen:
+                            seen.add(key)
+                            out_fp.write(f"{key}\n")
+                            out_fp.flush()
+    except Exception:
+        pass
