@@ -37,5 +37,13 @@ for f in "$HOME/.bashrc" "$HOME/.zshrc"; do
     fi
 done
 
+# 清理残留的 screen/tmux session
+if command -v screen >/dev/null 2>&1 && screen -list 2>/dev/null | grep -q '(asnip)'; then
+    screen -X -S asnip quit 2>/dev/null || true
+fi
+if command -v tmux >/dev/null 2>&1 && tmux has-session -t asnip 2>/dev/null; then
+    tmux kill-session -t asnip 2>/dev/null || true
+fi
+
 echo "✅ 卸载完成"
 echo "   已清理: ~/.asnip、/usr/local/bin/asnip、~/.local/bin/asnip、PATH 条目、临时缓存"
