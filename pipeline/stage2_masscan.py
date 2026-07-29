@@ -287,6 +287,8 @@ def run_verify(block_index: int, workdir: str, cf_scanner_path: str,
         "-c", str(workers),
         "-timeout", "10s",
         "-connect-timeout", "5s",
+        "--backpressure",
+        "--state", out_txt + ".tmp.state",
     ]
     if proxy:
         cmd += ["-proxy", proxy]

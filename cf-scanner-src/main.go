@@ -145,7 +145,31 @@ func main() {
 	}
 
 	// ── Counter for state save ──
-	var scannedTotal int64 // tracks total scanned (including resumed)
+	var scannedTotal int64
+	var completed sync.Map // key = "ip:port", value = true — for checkpoint file
+
+	// ── Checkpoint timer goroutine (every 30s) ──
+	checkpointTicker := time.NewTicker(30 * time.Second)
+	defer checkpointTicker.Stop()
+	checkpointDone := make(chan struct{})
+	go func() {
+		for {
+			select {
+			case <-checkpointDone:
+				return
+			case <-checkpointTicker.C:
+				// 30s checkpoint: write completed set to state file
+				entries := make([]string, 0, 500)
+				completed.Range(func(key, value any) bool {
+					entries = append(entries, key.(string)+" 1")
+					return true
+				})
+				if len(entries) > 0 {
+					resume.SaveCheckpoint(*stateFile, entries)
+				}
+			}
+		}
+	}() // tracks total scanned (including resumed)
 
 	// ── Token bucket ──
 	var tb *time.Ticker
@@ -199,12 +223,19 @@ func main() {
 				}
 
 				atomic.AddInt64(&scannedTotal, 1)
+				completed.Store(ip+":"+port, true)
 				n := atomic.LoadInt64(&scannedTotal)
 
-				// Periodic state save (every 1000)
-				if n%1000 == 0 {
-					os.WriteFile(*stateFile,
-						[]byte(fmt.Sprintf("%s\t%d", *inputFile, skipCount+int(n))), 0644)
+				// Periodic checkpoint (every 500)
+				if n%500 == 0 {
+					entries := make([]string, 0, 500)
+					completed.Range(func(key, value any) bool {
+						entries = append(entries, key.(string)+" 1")
+						return true
+					})
+					if len(entries) > 0 {
+						resume.SaveCheckpoint(*stateFile, entries)
+					}
 				}
 			}
 		}()
@@ -248,26 +279,29 @@ func main() {
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-sigCh
-		fmt.Println("\nInterrupted. Saving state...")
-		os.WriteFile(*stateFile,
-			[]byte(fmt.Sprintf("%s	%d", *inputFile, atomic.LoadInt64(&scannedTotal))), 0644)
-		fmt.Println("State saved. Exiting.")
+		fmt.Println("\nInterrupted. Saving checkpoint...")
+		entries := make([]string, 0, 500)
+		completed.Range(func(key, value any) bool {
+			entries = append(entries, key.(string)+" 1")
+			return true
+		})
+		if len(entries) > 0 {
+			resume.SaveCheckpoint(*stateFile, entries)
+		}
+		fmt.Println("Checkpoint saved. Exiting.")
 		os.Exit(1)
 	}()
 
 	// ── Start ──
-	qm.Run(context.Background())
-
-	// Wait for all workers to finish
 	workerWG.Wait()
 
 	// Flush output
 	w.Flush()
 	close(done)
+	close(checkpointDone)
 
-	// Mark complete
-	os.WriteFile(*stateFile,
-		[]byte(fmt.Sprintf("%s\t%d", *inputFile, total)), 0644)
+	// Mark complete — clean up checkpoint state file
+	os.Remove(*stateFile)
 
 	fmt.Printf("\n\nDone! %d verified | %d hits\n", total, w.Count())
 
