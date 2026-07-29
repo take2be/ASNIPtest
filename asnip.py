@@ -68,6 +68,8 @@ def main():
                         help="额外输出 JSON 格式报告")
     parser.add_argument("--no-deps", action="store_true",
                         help="跳过依赖检查")
+    parser.add_argument("--daemon", action="store_true",
+                        help="断线自动续跑模式：直到 report.csv 生成才退出")
 
     args = parser.parse_args()
 
@@ -158,6 +160,31 @@ def cmd_scan(args):
     app = Orchestrator()
     app.proxies = proxies
     app.verify_proxy = verify_proxy
+
+    if args.daemon:
+        # 后台循环：直到 report.csv 生成才退出
+        import signal
+        signal.signal(signal.SIGINT, signal.SIG_DFL)
+        import atexit
+        @atexit.register
+        def _on_exit():
+            print("\n  守护进程退出")
+        while True:
+            app.run(
+                asns=asns,
+                ports=ports,
+                force=False,
+                top_n=args.top,
+                speed_top=0 if args.top or args.json else 0,
+                json_output=args.json,
+            )
+            report_csv = os.path.join(PROJECT_DIR, "report.csv")
+            if os.path.exists(report_csv) and os.path.getsize(report_csv) > 100:
+                print("\n  ✅ report.csv 已生成，守护进程退出")
+                break
+            print("\n  报告未生成，10 秒后自动续跑...")
+            time.sleep(10)
+        return
 
     app.run(
         asns=asns,

@@ -268,14 +268,14 @@ irds() {
     fi
     # 在 screen/tmux 内部跑循环，并 ignore SIGHUP，防止 SSH 断连杀进程
     local inner_cmd
-    inner_cmd="trap '' HUP; while true; do ips $args; code=\$?; if [ \$code -eq 0 ]; then if [ -f \"${HOME}/.asnip/src/scan_data/report.csv\" ]; then echo \"报告文件已生成: ${HOME}/.asnip/src/scan_data/report.csv\"; break; fi; fi; echo \"上次执行结束(exit=\$code)且未见 report.csv，10秒后自动续跑...\"; sleep 10; done"
+    inner_cmd="trap '' HUP; while true; do ips --daemon $args; code=\\$?; if [ \\$code -eq 0 ]; then if [ -f \"${HOME}/.asnip/src/scan_data/report.csv\" ]; then echo \"报告文件已生成: ${HOME}/.asnip/src/scan_data/report.csv\"; break; fi; fi; echo \"上次执行结束(exit=\\$code)且未见 report.csv，10秒后自动续跑...\"; sleep 10; done"
     if [ "$runner" = "screen" ]; then
         screen -dmS asnip bash -c "$inner_cmd"
     else
         tmux new-session -d -s asnip bash -c "$inner_cmd"
     fi
     disown
-    echo "  已在后台启动($runner session: asnip)"
+    echo "  已在后台启动($runner session: asnip，daemon 守护模式)"
     echo "  查看: $runner -r asnip  或  tail -f /tmp/irds_asnip.log"
     echo "  结果: irds-result"
 }
@@ -287,7 +287,7 @@ fi
 if ! grep -q "irds-result" ~/.bashrc 2>/dev/null; then
     cat >> ~/.bashrc << 'BASHRC_EOF2'
 
-# ASNIPtest: 查看最近一次扫描结果
+# ASNIPtest: 查看最近一次扫描结果（可用IP汇总）
 irds-result() {
     local rpt=""
     if [ -d "${HOME}/.asnip/src/scan_data" ]; then
@@ -298,8 +298,34 @@ irds-result() {
         return 1
     fi
     echo "  报告: $rpt"
-    wc -l "$rpt" 2>/dev/null || true
-    tail -n +1 "$rpt" 2>/dev/null | paste - - - | head -20 || cat "$rpt"
+    python3 - "$rpt" << 'PY'
+import csv, sys
+p = sys.argv[1]
+rows = []
+with open(p, newline='', encoding='utf-8', errors='replace') as f:
+    reader = csv.DictReader(f)
+    for r in reader:
+        rows.append(r)
+if not rows:
+    print("  空报告")
+    sys.exit(0)
+valid = [r for r in rows if r.get('Latency_ms','-') not in ('-','')]
+print(f"  总行: {len(rows)}，有效: {len(valid)}")
+if valid:
+    valid_sorted = sorted(valid, key=lambda r: (float(r.get('Latency_ms', 99999) or 99999), -float(r.get('Download_Mbps', 0) or 0)))
+    print("  Top 10 可用:")
+    print("  %-18s %-8s %10s %12s %10s" % ("IP:PORT", "Country", "Latency", "Download", "Org"))
+    for r in valid_sorted[:10]:
+        ip = r.get('IP','?)
+        port = r.get('PORT','?')
+        print("  %-18s %-8s %8sms %10sMbps %10s" % (
+            f"{ip}:{port}",
+            r.get('Country','-')[:8],
+            r.get('Latency_ms','-'),
+            r.get('Download_Mbps', 0),
+            (r.get('Org','-')[:10] or '-'),
+        ))
+PY
 }
 BASHRC_EOF2
     echo -e " ${GREEN}✅ 已注册 irds-result 函数到 ~/.bashrc${NC}"
