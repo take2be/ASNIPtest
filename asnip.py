@@ -17,6 +17,27 @@ import threading
 import time
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 
+
+class _DownloadHandler(SimpleHTTPRequestHandler):
+    """结果文件下载处理器：CSV/JSON 自动作为附件下载。"""
+
+    extensions_map = {
+        **SimpleHTTPRequestHandler.extensions_map,
+        ".csv": "text/csv",
+        ".json": "application/json",
+    }
+
+    def end_headers(self):
+        path = self.translate_path(self.path)
+        _, ext = os.path.splitext(path)
+        if ext.lower() in (".csv", ".json"):
+            self.send_header("Content-Disposition",
+                             f"attachment; filename={os.path.basename(path)}")
+        super().end_headers()
+
+    def log_message(self, format, *args):
+        pass  # 安静运行，不刷日志
+
 # ============================================================
 #  配置
 # ============================================================
@@ -240,9 +261,7 @@ def _serve_results(port: int = 8080):
     t.start()
 
     # 启动 HTTP 服务（后台线程）
-    handler = SimpleHTTPRequestHandler
-
-    server = HTTPServer(("0.0.0.0", port), handler)
+    server = HTTPServer(("0.0.0.0", port), _DownloadHandler)
     t_server = threading.Thread(target=server.serve_forever, daemon=True)
     t_server.start()
 
