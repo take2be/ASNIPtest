@@ -21,11 +21,17 @@ def _country_region(country_code: str) -> str:
     return COUNTRY_REGION.get(country_code, country_code)
 
 
-def _access_protocol(tls: str, alpn: str) -> str:
-    """推断访问协议：https / http / plaintext。"""
-    if tls and tls != "-":
+def _access_protocol(tls: str, alpn: str, cf_confirmed: bool = False) -> str:
+    """推断访问协议：https / http / plaintext。
+
+    优先用实际字段；cf-scanner 验证通过的节点支持 TLS，
+    但端到端可能是 plaintext 回源，所以保留原始值，不再强制 https。
+    """
+    if tls and tls not in ("-", "", "false", "False"):
+        return tls.lower()
+    if alpn and alpn not in ("-", ""):
         return "https"
-    if alpn and alpn != "-":
+    if cf_confirmed:
         return "https"
     return "plaintext"
 
@@ -35,15 +41,17 @@ def generate_report(ip_data: list[dict], output_dir: str = ".",
                     keep_cf_official: bool = False,
                     json_output: bool = False,
                     public_ip: str = "-",
-                    colo_map: dict | None = None) -> dict:
+                    colo_map: dict | None = None,
+                    basename: str | None = None) -> dict:
     """生成最终报告（17 列）。
-
-    列顺序（用户指定，不含 WARP/Gateway/RBI/密钥交换/时间戳）:
-        IP地址 | 端口号 | TLS | 数据中心 | IP位置 | 地区 | 城市
-        | 地区(中文) | 城市(中文) | 国旗 | 网络延迟 | 出站IP | 出站IP类型
-        | IP类型(机房/住宅) | ASN号码 | ASN组织 | 访问协议
+    ...
     """
     os.makedirs(output_dir, exist_ok=True)
+
+    # 默认文件名 report.csv，可选自定义 basename
+    name = basename or "report"
+    csv_path = os.path.join(output_dir, f"{name}.csv")
+    json_path = os.path.join(output_dir, f"{name}.json") if json_output else None
 
     # 排序：download 降序 → latency 升序
     def sort_key(row):
@@ -68,10 +76,11 @@ def generate_report(ip_data: list[dict], output_dir: str = ".",
         "IP地址", "端口号", "TLS", "数据中心", "IP位置",
         "地区", "城市", "地区(中文)", "城市(中文)", "国旗",
         "网络延迟(ms)", "出站IP", "出站IP类型", "IP类型",
-        "ASN号码", "ASN组织", "访问协议",
+        "ASN号码", "ASN组织", "访问协议", "测速",
     ]
 
-    csv_path = os.path.join(output_dir, "report.csv")
+    csv_path = os.path.join(output_dir, f"{name}.csv")
+    json_path = os.path.join(output_dir, f"{name}.json") if json_output else None
     with open(csv_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         writer.writerow(fieldnames)
@@ -82,30 +91,34 @@ def generate_report(ip_data: list[dict], output_dir: str = ".",
             cn_name = _country_cn(cc)
             region = _country_region(cc)
             ip_port_str = row.get("ip_port", "")
-            # 出站IP类型：判断 IP 部分（不含端口）
             ip_only = ip_port_str.rsplit(":", 1)[0] if ":" in ip_port_str else ip_port_str
             ip_port_type = "IPv6" if ":" in ip_only else "IPv4"
-            proto = _access_protocol(
-                row.get("tls", "-"), row.get("alpn", "-"))
+            is_cf_row = row.get("conf") in ("high", "low") or row.get("status") in ("200", "301", "403")
+            lat = row.get("latency_ms", "-")
+            dl = row.get("download_mbps", 0)
+            speed_str = f"{lat}ms" if lat and lat != "-" else "-"
+            if dl and dl != 0:
+                speed_str += f" / {dl}MB"
 
             writer.writerow([
-                ip,                           # IP地址
-                port,                         # 端口号
-                row.get("tls", "-"),          # TLS
-                row.get("colo", "-"),          # 数据中心(colo, cf-scanner)
-                row.get("country", "-"),       # IP位置
-                row.get("region_name", "-"),  # 地区
-                row.get("city", "-"),         # 城市
-                region,                       # 地区(中文)
-                cn_name,                      # 城市(中文) — ip-api 不返城市中文，用国家中文兜底
-                cn_flag,                      # 国旗
-                row.get("latency_ms", "-"),   # 网络延迟(ms)
-                public_ip,                    # 出站IP
-                ip_port_type,                 # 出站IP类型
-                row.get("ip_type", "未知"),   # IP类型(机房/住宅/CF官方)
-                row.get("asn", "-"),          # ASN号码
-                row.get("org", "-"),          # ASN组织
-                proto,                        # 访问协议
+                ip,
+                port,
+                "true" if is_cf_row else row.get("tls", "-"),
+                row.get("colo", "-"),
+                row.get("country", "-"),
+                row.get("region_name", "-"),
+                row.get("city", "-"),
+                region,
+                cn_name,
+                cn_flag,
+                lat,
+                public_ip,
+                ip_port_type,
+                row.get("ip_type", "未知"),
+                row.get("asn", "-"),
+                row.get("org", "-"),
+                _access_protocol(row.get("tls", "-"), row.get("alpn", "-"), cf_confirmed=is_cf_row),
+                speed_str,
             ])
 
     # === 写 JSON ===
@@ -117,8 +130,9 @@ def generate_report(ip_data: list[dict], output_dir: str = ".",
             ip_port_str = row.get("ip_port", "")
             ip_only = ip_port_str.rsplit(":", 1)[0] if ":" in ip_port_str else ip_port_str
             ip_version = "IPv6" if ":" in ip_only else "IPv4"
+            is_cf = row.get("conf") in ("high", "low") or row.get("status") in ("200", "301", "403")
             proto = _access_protocol(
-                row.get("tls", "-"), row.get("alpn", "-"))
+                row.get("tls", "-"), row.get("alpn", "-"), cf_confirmed=is_cf)
             json_rows.append({
                 "ip": ip,
                 "port": port,

@@ -4,6 +4,7 @@ import json
 import os
 import sys
 import time
+from datetime import datetime
 from pathlib import Path
 
 from .utils import ensure_dirs, format_duration, CACHE_DIR
@@ -356,6 +357,11 @@ class Orchestrator:
         from asnip import _get_public_ip
         public_ip = _get_public_ip() or "-"
 
+        # 生成带时间戳的规范文件名
+        tag_ports = ports.replace(",", "_")
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        report_basename = f"AS{asns[0]}_{tag_ports}_{ts}"
+
         stats = generate_report(
             merged,
             output_dir=self.workdir,
@@ -364,6 +370,7 @@ class Orchestrator:
             json_output=json_output,
             public_ip=public_ip,
             colo_map=colo_map,
+            basename=report_basename,
         )
 
         total_elapsed = time.time() - start_total
