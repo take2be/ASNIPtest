@@ -172,14 +172,6 @@ def run_masscan(block_index: int, cidrs_file: str, ports: str,
     start = time.time()
 
     # 基于输出文件行数计算 m/n 进度
-    if os.path.exists(cidrs_path):
-        with open(cidrs_path) as f:
-            lines = [l.strip() for l in f if l.strip()]
-        total_targets = len(lines)
-    else:
-        total_targets = 0
-
-    # 仅在实际发现端口数变化时更新显示，避免刷屏
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
     last_found = ""
     _seen = set()
@@ -208,16 +200,12 @@ def run_masscan(block_index: int, cidrs_file: str, ports: str,
                                             _f_tmp.flush()
                     except Exception:
                         pass
-                    m = re.search(r"rate:\s+([0-9.]+)-kpps.*found=(\d+)", line)
+                    m = re.search(r"rate:\s+([0-9.]+)-kpps,\s+([0-9.]+)%\s+done.*found=(\d+)", line)
                     if m:
                         rate_str = m.group(1).strip()
-                        found_str = m.group(2).strip()
-                        done_targets = sum(1 for l in open(targets_tmp) if l.strip()) if os.path.exists(targets_tmp) else 0
-                        block_str = ""
-                        if total_targets > 0:
-                            block_pct = min(done_targets / total_targets, 1.0)
-                            block_str = f"  block={block_pct*100:.0f}%"
-                        display = f"\r  ⏳ 命中={found_str}{block_str}  速率={rate_str}-kpps"
+                        done_str = m.group(2).strip()
+                        found_str = m.group(3).strip()
+                        display = f"\\r  ⏳ {done_str}%  命中={found_str}  速率={rate_str}-kpps"
                         display = display.encode('utf-8', errors='replace').decode('utf-8', errors='replace')
                         if found_str != last_found:
                             sys.stdout.write(display)
