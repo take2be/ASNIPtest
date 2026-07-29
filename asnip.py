@@ -268,18 +268,16 @@ def _serve_results(port: int = 8080):
     if lan_ip:
         url_local_csv = f"http://{lan_ip}:{port}/report.csv"
         url_local_json = f"http://{lan_ip}:{port}/report.json"
-        _l_label = "  🌐 局域网: "
-        print(f"{_l_label}{url_local_csv}")
-        print(f"{' ' * len(_l_label)}{url_local_json}")
+        print(f"  🌐 局域网地址:  {_link(url_local_csv, url_local_csv)}")
+        print(f"                   {_link(url_local_json, url_local_json)}")
 
     if public_ip:
         url_pub_csv = f"http://{public_ip}:{port}/report.csv"
         url_pub_json = f"http://{public_ip}:{port}/report.json"
-        _g_label = "  🌍 公网地址: "
-        print(f"{_g_label}{url_pub_csv}")
-        print(f"{' ' * len(_g_label)}{url_pub_json}")
+        print(f"  🌍 公网地址:    {_link(url_pub_csv, url_pub_csv)}")
+        print(f"                   {_link(url_pub_json, url_pub_json)}")
     else:
-        print("  🌍 公网地址:    获取失败（需公网 IP 和端口放行）")
+        print(f"  🌍 公网地址:    获取失败（需公网 IP 和端口放行）")
 
     print()
     print("  提示：若浏览器打不开，请确认 VPS 防火墙已放行"
