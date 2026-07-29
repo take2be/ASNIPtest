@@ -240,65 +240,57 @@ rm -f /usr/local/bin/asnip /usr/local/bin/ips 2>/dev/null || true
 # 当前交互 shell 立刻生效
 export PATH="${INSTALL_DIR}/bin:$PATH"
 
-# ---- 注册 irds 快捷函数（防 SSH 断线 + 自动续跑至出结果） ----
-if ! grep -q "irds()" ~/.bashrc 2>/dev/null; then
-    cat >> ~/.bashrc << 'BASHRC_EOF'
+# ---- 注册 irds / irds-result 到 ~/.asnip/bin/（开箱即用，无需 source） ----
+BIN_DIR="${INSTALL_DIR}/bin"
+mkdir -p "$BIN_DIR"
 
-# ASNIPtest: 一键后台扫描，断线自动续跑，直到 report.csv 生成
-irds() {
-    local args="$*"
-    # 如果上次有残留 screen/tmux session 就复用提示
-    if command -v screen >/dev/null 2>&1 && screen -list 2>/dev/null | grep -q '(asnip)'; then
-        echo "  检测到已有 asnip screen session，先用 screen -r asnip 查看"
-        return 0
-    fi
-    if command -v tmux >/dev/null 2>&1 && tmux has-session -t asnip 2>/dev/null; then
-        echo "  检测到已有 asnip tmux session，先用 tmux attach -t asnip 查看"
-        return 0
-    fi
-    local runner
-    if command -v screen >/dev/null 2>&1; then
-        runner="screen"
-    elif command -v tmux >/dev/null 2>&1; then
-        runner="tmux"
-    else
-        echo "  未检测到 screen/tmux，直接前台运行"
-        ips $args
-        return
-    fi
-    # 在 screen/tmux 内部跑循环，并 ignore SIGHUP，防止 SSH 断连杀进程
-    local inner_cmd
-    inner_cmd="trap '' HUP; while true; do ips --daemon $args; code=\\$?; if [ \\$code -eq 0 ]; then if [ -f \"${HOME}/.asnip/src/scan_data/report.csv\" ]; then echo \"报告文件已生成: ${HOME}/.asnip/src/scan_data/report.csv\"; break; fi; fi; echo \"上次执行结束(exit=\\$code)且未见 report.csv，10秒后自动续跑...\"; sleep 10; done"
-    if [ "$runner" = "screen" ]; then
-        screen -dmS asnip bash -c "$inner_cmd"
-    else
-        tmux new-session -d -s asnip bash -c "$inner_cmd"
-    fi
-    disown
-    echo "  已在后台启动($runner session: asnip，daemon 守护模式)"
-    echo "  查看: $runner -r asnip  或  tail -f /tmp/irds_asnip.log"
-    echo "  结果: irds-result"
-}
-BASHRC_EOF
-    echo -e " ${GREEN}✅ 已注册 irds 函数到 ~/.bashrc${NC}"
+# irds 脚本
+cat > "$BIN_DIR/irds" << 'SCRIPT'
+#!/usr/bin/env bash
+args="$*"
+if command -v screen >/dev/null 2>&1 && screen -list 2>/dev/null | grep -q '(asnip)'; then
+    echo "  检测到已有 asnip screen session，先用 screen -r asnip 查看"
+    exit 0
 fi
+if command -v tmux >/dev/null 2>&1 && tmux has-session -t asnip 2>/dev/null; then
+    echo "  检测到已有 asnip tmux session，先用 tmux attach -t asnip 查看"
+    exit 0
+fi
+runner=""
+if command -v screen >/dev/null 2>&1; then
+    runner="screen"
+elif command -v tmux >/dev/null 2>&1; then
+    runner="tmux"
+else
+    echo "  未检测到 screen/tmux，直接前台运行 --daemon"
+    exec ips --daemon $args
+fi
+inner_cmd="trap '' HUP; while true; do ips --daemon $args; code=\$?; if [ \$code -eq 0 ]; then if [ -f \"${HOME}/.asnip/src/scan_data/report.csv\" ]; then echo \"报告文件已生成: ${HOME}/.asnip/src/scan_data/report.csv\"; break; fi; fi; echo \"上次执行结束(exit=\$code)且未见 report.csv，10秒后自动续跑...\"; sleep 10; done"
+if [ "$runner" = "screen" ]; then
+    screen -dmS asnip bash -c "$inner_cmd"
+else
+    tmux new-session -d -s asnip bash -c "$inner_cmd"
+fi
+disown
+echo "  已在后台启动($runner session: asnip，daemon 守护模式)"
+echo "  查看: $runner -r asnip"
+echo "  结果: irds-result"
+SCRIPT
+chmod +x "$BIN_DIR/irds"
 
-# ---- 注册 irds-result 函数（查看结果文件） ----
-if ! grep -q "irds-result" ~/.bashrc 2>/dev/null; then
-    cat >> ~/.bashrc << 'BASHRC_EOF2'
-
-# ASNIPtest: 查看最近一次扫描结果（可用IP汇总）
-irds-result() {
-    local rpt=""
-    if [ -d "${HOME}/.asnip/src/scan_data" ]; then
-        rpt=$(find "${HOME}/.asnip/src/scan_data" -maxdepth 1 -name "report.csv" -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -1 | cut -d' ' -f2-)
-    fi
-    if [ -z "$rpt" ] || [ ! -f "$rpt" ]; then
-        echo "  尚未找到 report.csv"
-        return 1
-    fi
-    echo "  报告: $rpt"
-    python3 - "$rpt" << 'PY'
+# irds-result 脚本
+cat > "$BIN_DIR/irds-result" << 'SCRIPT'
+#!/usr/bin/env bash
+rpt=""
+if [ -d "${HOME}/.asnip/src/scan_data" ]; then
+    rpt=$(find "${HOME}/.asnip/src/scan_data" -maxdepth 1 -name "report.csv" -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -1 | cut -d' ' -f2-)
+fi
+if [ -z "$rpt" ] || [ ! -f "$rpt" ]; then
+    echo "  尚未找到 report.csv"
+    exit 1
+fi
+echo "  报告: $rpt"
+python3 - "$rpt" << 'PY'
 import csv, sys
 p = sys.argv[1]
 rows = []
@@ -316,7 +308,7 @@ if valid:
     print("  Top 10 可用:")
     print("  %-18s %-8s %10s %12s %10s" % ("IP:PORT", "Country", "Latency", "Download", "Org"))
     for r in valid_sorted[:10]:
-        ip = r.get('IP','?)
+        ip = r.get('IP','?')
         port = r.get('PORT','?')
         print("  %-18s %-8s %8sms %10sMbps %10s" % (
             f"{ip}:{port}",
@@ -326,10 +318,10 @@ if valid:
             (r.get('Org','-')[:10] or '-'),
         ))
 PY
-}
-BASHRC_EOF2
-    echo -e " ${GREEN}✅ 已注册 irds-result 函数到 ~/.bashrc${NC}"
-fi
+SCRIPT
+chmod +x "$BIN_DIR/irds-result"
+
+echo -e " ${GREEN}✅ irds / irds-result 已注册到 $BIN_DIR/${NC}"
 
 # ---- 完成 ----
 echo -e "${GREEN}${BOLD}========================================${NC}"
