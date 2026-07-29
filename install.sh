@@ -294,19 +294,28 @@ with open(p, newline='', encoding='utf-8', errors='replace') as f:
 if not rows:
     print("空报告")
     sys.exit(0)
-valid = [r for r in rows if r.get('Latency_ms','-') not in ('-','')]
+
+valid = [r for r in rows if r.get("网络延迟(ms)") not in ("-", "")]
 print(f"总行: {len(rows)}，有效: {len(valid)}")
 if valid:
-    valid_sorted = sorted(valid, key=lambda r: (float(r.get('Latency_ms', 99999) or 99999), -float(r.get('Download_Mbps', 0) or 0)))
+    def _lat(r):
+        try:
+            return float(r.get("网络延迟(ms)", 99999) or 99999)
+        except (ValueError, TypeError):
+            return 99999
+    valid_sorted = sorted(valid, key=_lat)
     print("Top 10 可用:")
-    print("%-18s %-10s %8s %10s %10s" % ("IP:PORT", "Country", "Latency", "Download", "Org"))
+    print("%-18s %-10s %8s %6s %s" % ("IP:PORT", "地区", "延迟ms", "国旗", "IP类型"))
     for r in valid_sorted[:10]:
-        print("%-18s %-10s %8sms %9sMbps %10s" % (
-            f"{r.get('IP','?')}:{r.get('PORT','?')}",
-            (r.get('Country','-')[:10] or '-'),
-            r.get('Latency_ms','-'),
-            r.get('Download_Mbps', 0),
-            (r.get('Org','-')[:10] or '-'),
+        ip = r.get("IP地址", "?")
+        port = r.get("端口号", "")
+        ip_port = f"{ip}:{port}" if port else ip
+        print("%-18s %-10s %8sms %6s %s" % (
+            ip_port,
+            (r.get("IP位置", "-") or "-")[:10],
+            r.get("网络延迟(ms)", "-"),
+            (r.get("国旗", "") or ""),
+            (r.get("IP类型", "-") or "-"),
         ))
 PY
 SCRIPT

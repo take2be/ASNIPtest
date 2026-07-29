@@ -24,14 +24,15 @@ def enrich_ips(ip_ports: list[str], proxies: dict | None = None,
     cf_asns = load_cf_official_asns()
     results = []
 
-    # 提取唯一 IP（去重）
-    unique_ips = list({ip_port.split(":")[0] for ip_port in ip_ports if ":" in ip_port})
+    # 提取唯一 IP（去重）。rsplit 防 IPv6 被拆断
+    _split = lambda ip_port: ip_port.rsplit(":", 1)[0]
+    unique_ips = list({_split(ip_port) for ip_port in ip_ports if ":" in ip_port})
 
     # 查 IP 归属
     ip_info = _batch_lookup(unique_ips, proxies=proxies, on_progress=on_progress)
 
     for ip_port in ip_ports:
-        ip = ip_port.split(":")[0]
+        ip = ip_port.rsplit(":", 1)[0] if ":" in ip_port else ip_port
         info = ip_info.get(ip, {
             "asn": "-", "country": "-", "country_code": "-",
             "region_name": "-", "city": "-", "org": "-",
