@@ -249,22 +249,48 @@ def run_verify(block_index: int, workdir: str, cf_scanner_path: str,
     print(f"  🔍 Block {block_index}: cf-scanner 验证 (workers={workers})")
     start = time.time()
 
-    # 实时显示进度，不刷屏
+    # 基于输出文件行数实时展示验证进度
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
-    last_line = ""
-    for line in proc.stdout:
-        line = line.rstrip()
-        if not line:
-            continue
-        # 只显示关键行
-        if any(k in line for k in ["done", "error", "result", "open", "close", "timeout", "fail", "命中", "成功"]):
-            if line != last_line:
-                sys.stdout.write(f"\r  ⏳ 验证中: {line[:80]}")
+    total_targets = sum(1 for _ in open(targets_file, "r")) if os.path.exists(targets_file) else 0
+    last_count = 0
+    last_err = ""
+
+    # 定期刷新进度
+    import time as _time
+    while proc.poll() is None:
+        if os.path.exists(out_txt):
+            with open(out_txt, "r") as f:
+                lines = f.readlines()
+            count = sum(1 for l in lines if l.strip() and not l.startswith("ip,"))
+            if count != last_count:
+                pct = count / total_targets if total_targets else 0
+                bar = "█" * int(24 * pct) + " " * (24 - int(24 * pct))
+                sys.stdout.write(f"\r  ⏳ 验证: {count}/{total_targets} ({pct*100:.0f}%) |{bar}|")
                 sys.stdout.flush()
-                last_line = line
+                last_count = count
+        # 非阻塞读 stderr
+        if proc.stdout:
+            line = proc.stdout.readline()
+            if line:
+                line = line.rstrip()
+                if line and line != last_err:
+                    sys.stdout.write(f"\n  ⚠ {line[:100]}\n")
+                    sys.stdout.flush()
+                    last_err = line
+        _time.sleep(0.1)
     proc.wait()
-    sys.stdout.write("\n")
-    sys.stdout.flush()
+
+    # 最终进度
+    if os.path.exists(out_txt):
+        with open(out_txt, "r") as f:
+            lines = f.readlines()
+        final_count = sum(1 for l in lines if l.strip() and not l.startswith("ip,"))
+        pct = final_count / total_targets if total_targets else 0
+        bar = "█" * int(24 * pct) + " " * (24 - int(24 * pct))
+        sys.stdout.write(f"\r  ✅ 验证完成: {final_count}/{total_targets} ({pct*100:.0f}%) |{bar}|\n")
+        sys.stdout.flush()
+    else:
+        print("  ?? Block {block_index}: 验证未生成输出")
 
     elapsed = time.time() - start
     if proc.returncode != 0:
