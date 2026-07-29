@@ -31,12 +31,18 @@ def enrich_ips(ip_ports: list[str], proxies: dict | None = None,
 
     for ip_port in ip_ports:
         ip = ip_port.split(":")[0]
-        info = ip_info.get(ip, {"asn": "-", "country": "-", "org": "-",
-                                "source": "-", "cached_at": "-"})
+        info = ip_info.get(ip, {
+            "asn": "-", "country": "-", "country_code": "-",
+            "region_name": "-", "city": "-", "org": "-",
+            "source": "-", "cached_at": "-",
+        })
         results.append({
             "ip_port": ip_port,
             "asn": info["asn"],
             "country": info["country"],
+            "country_code": info.get("country_code", "-"),
+            "region_name": info.get("region_name", "-"),
+            "city": info.get("city", "-"),
             "org": info["org"],
             "is_cf_official": info["asn"] in cf_asns if isinstance(info["asn"], int) else False,
             "source": info["source"],
@@ -82,11 +88,14 @@ def _batch_lookup(ips: list[str], proxies: dict | None = None,
             result[ip] = info
             _write_cache(ip, info)
 
-    # 仍未查到的标 -
+    # 仍未查到的标 -（新字段也加）
     for ip in uncached:
         if ip not in result:
-            info = {"asn": "-", "country": "-", "org": "-",
-                    "source": "-", "cached_at": "-"}
+            info = {
+                "asn": "-", "country": "-", "country_code": "-",
+                "region_name": "-", "city": "-", "org": "-",
+                "source": "-", "cached_at": "-",
+            }
             result[ip] = info
 
     return result
@@ -127,15 +136,23 @@ def _query_cymru_batch(ips: list[str]) -> dict:
 
 
 def _query_ipapi_batch(ips: list[str], proxies: dict | None = None) -> dict:
-    """通过 ip-api.com batch API 查 IP 归属。"""
+    """通过 ip-api.com batch API 查 IP 归属。
+
+    返回: {ip: {asn, country, country_code, region, region_name,
+                city, org, source, cached_at, timezone}}
+    """
     if not ips:
         return {}
 
     result = {}
-    # ip-api batch 限制 100 IP/次
+    # ip-api batch ≤ 100/次；取 country, regionName, city, countryCode 用于报告中文化/地区
+    FIELDS = (
+        "status,query,as,country,countryCode,region,regionName,"
+        "city,org"
+    )
     for i in range(0, len(ips), 100):
         batch = ips[i:i + 100]
-        url = "http://ip-api.com/batch"
+        url = f"http://ip-api.com/batch?fields={FIELDS}"
         data = json.dumps(batch).encode()
 
         try:
@@ -159,6 +176,10 @@ def _query_ipapi_batch(ips: list[str], proxies: dict | None = None) -> dict:
                 result[ip] = {
                     "asn": asn,
                     "country": entry.get("country", "-"),
+                    "country_code": entry.get("countryCode", "-"),
+                    "region": entry.get("region", "-"),
+                    "region_name": entry.get("regionName", "-"),
+                    "city": entry.get("city", "-"),
                     "org": entry.get("org", "-"),
                     "source": "ipapi",
                     "cached_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
@@ -176,14 +197,25 @@ def _read_cache(ip: str) -> dict | None:
     try:
         with open(cache_file) as f:
             parts = f.read().strip().split("|")
-            if len(parts) >= 5:
-                return {
-                    "asn": int(parts[0]) if parts[0].isdigit() else parts[0],
-                    "country": parts[1],
-                    "org": parts[2],
-                    "source": parts[3],
-                    "cached_at": parts[4],
-                }
+        if len(parts) >= 5:
+            result = {
+                "asn": int(parts[0]) if parts[0].isdigit() else parts[0],
+                "country": parts[1],
+                "org": parts[2],
+                "source": parts[3],
+                "cached_at": parts[4],
+            }
+            # 新字段（向后兼容旧缓存）
+            if len(parts) >= 9:
+                result["country_code"] = parts[5]
+                result["region_name"] = parts[6]
+                result["city"] = parts[7]
+                # parts[8] 预留
+            else:
+                result["country_code"] = "-"
+                result["region_name"] = "-"
+                result["city"] = "-"
+            return result
     except Exception:
         pass
     return None
@@ -192,4 +224,14 @@ def _read_cache(ip: str) -> dict | None:
 def _write_cache(ip: str, info: dict):
     cache_file = os.path.join(CACHE_DIR, f"asn_{ip}.txt")
     with open(cache_file, "w") as f:
-        f.write(f"{info['asn']}|{info['country']}|{info['org']}|{info['source']}|{info['cached_at']}\n")
+        f.write("|".join([
+            str(info.get("asn", "-")),
+            info.get("country", "-"),
+            info.get("org", "-"),
+            info.get("source", "-"),
+            info.get("cached_at", "-"),
+            info.get("country_code", "-"),
+            info.get("region_name", "-"),
+            info.get("city", "-"),
+            "",  # 预留扩展位
+        ]) + "\n")

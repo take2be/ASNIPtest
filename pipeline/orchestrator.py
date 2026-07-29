@@ -276,22 +276,39 @@ class Orchestrator:
         # 按 ip_port 合并 enrich + speed
         speed_map = {r["ip_port"]: r for r in speed_results}
         merged = []
+        from .utils import classify_ip_type, load_cf_official_asns
+        cf_asns = load_cf_official_asns()
         for row in enriched:
             ip_port = row["ip_port"]
             sp = speed_map.get(ip_port, {})
+            org = row.get("org", "-")
+            asn = row.get("asn", "-")
+            # CF 官方走 is_cf_official，不在 IP 类型中标
+            if row.get("is_cf_official") or asn in cf_asns:
+                ip_type = "CF官方"
+            else:
+                ip_type = classify_ip_type(org, asn)
             merged.append({
                 "ip_port": ip_port,
                 "asn": row["asn"],
                 "country": row["country"],
+                "country_code": row.get("country_code", "-"),
+                "region_name": row.get("region_name", "-"),
+                "city": row.get("city", "-"),
                 "org": row["org"],
                 "is_cf_official": row["is_cf_official"],
+                "ip_type": ip_type,
                 "latency_ms": sp.get("latency_ms", "-"),
                 "download_mbps": sp.get("download_mbps", 0),
-                "tls": "-",
-                "alpn": "-",
+                "tls": sp.get("tls", "-") if sp.get("tls") else "-",
+                "alpn": sp.get("alpn", "-") if sp.get("alpn") else "-",
                 "verify_reason": "-",
                 "confidence": "-",
+                "source": row.get("source", "-"),
             })
+
+        from asnip import _get_public_ip
+        public_ip = _get_public_ip() or "-"
 
         stats = generate_report(
             merged,
@@ -299,6 +316,7 @@ class Orchestrator:
             top_n=top_n,
             keep_cf_official=False,
             json_output=json_output,
+            public_ip=public_ip,
         )
 
         total_elapsed = time.time() - start_total
