@@ -167,21 +167,31 @@ def run_masscan(block_index: int, cidrs_file: str, ports: str,
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
     last_rate = ""
     last_update = 0.0
-    for line in proc.stdout:
-        line = line.rstrip()
-        if "rate:" in line and "kpps" in line:
-            try:
-                rate_str = line.strip().split("rate:")[1].strip().split("  found=")[0].strip()
-                found_str = line.strip().split("found=")[1].strip()
-            except Exception:
-                continue
-            now = time.time()
-            if rate_str != last_rate or found_str != last_rate:
-                if now - last_update >= 0.5:
-                    sys.stdout.write(f"\r  ⏳ 扫描中: {rate_str}  命中={found_str}")
+    try:
+        for line in proc.stdout:
+            line = line.rstrip()
+            if "rate:" in line and "kpps" in line:
+                try:
+                    after_rate = line.split("rate:", 1)[1].strip()
+                    rate_str = after_rate.split(",", 1)[0].strip()
+                    found_str = line.split("found=", 1)[1].strip() if "found=" in line else "?"
+                except Exception:
+                    continue
+                now = time.time()
+                key = f"{rate_str}|{found_str}"
+                if key != last_rate and now - last_update >= 0.5:
+                    sys.stdout.write(f"\r  ⏳ 扫描中: {rate_str}, 命中={found_str}")
                     sys.stdout.flush()
-                    last_rate = f"{rate_str}|{found_str}"
+                    last_rate = key
                     last_update = now
+    except KeyboardInterrupt:
+        proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+        print("\n  已取消扫描")
+        return False
     proc.wait()
     sys.stdout.write("\n")
     sys.stdout.flush()
@@ -263,27 +273,36 @@ def run_verify(block_index: int, workdir: str, cf_scanner_path: str,
 
     # 定期刷新进度
     import time as _time
-    while proc.poll() is None:
-        if os.path.exists(out_txt):
-            with open(out_txt, "r") as f:
-                lines = f.readlines()
-            count = sum(1 for l in lines if l.strip() and not l.startswith("ip,"))
-            if count != last_count:
-                pct = count / total_targets if total_targets else 0
-                bar = "█" * int(24 * pct) + " " * (24 - int(24 * pct))
-                sys.stdout.write(f"\r  ⏳ 验证: {count}/{total_targets} ({pct*100:.0f}%) |{bar}|")
-                sys.stdout.flush()
-                last_count = count
-        # 非阻塞读 stderr
-        if proc.stdout:
-            line = proc.stdout.readline()
-            if line:
-                line = line.rstrip()
-                if line and line != last_err:
-                    sys.stdout.write(f"\n  ⚠ {line[:100]}\n")
+    try:
+        while proc.poll() is None:
+            if os.path.exists(out_txt):
+                with open(out_txt, "r") as f:
+                    lines = f.readlines()
+                count = sum(1 for l in lines if l.strip() and not l.startswith("ip,"))
+                if count != last_count:
+                    pct = count / total_targets if total_targets else 0
+                    bar = "█" * int(24 * pct) + " " * (24 - int(24 * pct))
+                    sys.stdout.write(f"\r  ⏳ 验证: {count}/{total_targets} ({pct*100:.0f}%) |{bar}|")
                     sys.stdout.flush()
-                    last_err = line
-        _time.sleep(0.1)
+                    last_count = count
+            # 非阻塞读 stderr
+            if proc.stdout:
+                line = proc.stdout.readline()
+                if line:
+                    line = line.rstrip()
+                    if line and line != last_err:
+                        sys.stdout.write(f"\n  ⚠ {line[:100]}\n")
+                        sys.stdout.flush()
+                        last_err = line
+            _time.sleep(0.1)
+    except KeyboardInterrupt:
+        proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+        print("\n  已取消验证")
+        return False
     proc.wait()
 
     # 最终进度

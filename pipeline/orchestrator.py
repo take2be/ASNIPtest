@@ -111,58 +111,63 @@ class Orchestrator:
         last_len = 0
 
         for st in statuses:
-            blk_idx = st["index"]
-            state = st["state"]
-            skip = False
+            try:
+                blk_idx = st["index"]
+                state = st["state"]
+                skip = False
 
-            # 显示当前 block
-            print(f"  🔄 Block {blk_idx}/{total_blocks}: {state}")
+                # 显示当前 block
+                print(f"  🔄 Block {blk_idx}/{total_blocks}: {state}")
 
-            if state == "done":
-                print(f"  ✅ Block {blk_idx}/{total_blocks}: 已完成，跳过")
-                cf_file = os.path.join(self.scan_dir, f"block_{blk_idx:03d}_cf.txt")
-                if os.path.exists(cf_file):
-                    with open(cf_file) as f:
-                        for line in f:
-                            line = line.strip()
-                            if line:
-                                all_ips.append(line)
-                block_done += 1
-                skip = True
-            else:
-                # 跑 masscan（如果没扫过）
-                if state == "pending":
-                    cidrs_file = st["cidrs_file"]
-                    print(f"  🚀 Block {blk_idx}/{total_blocks}: 开始 masscan...")
-                    ok = run_masscan(blk_idx, cidrs_file, ports,
-                                    self.scan_dir, rate=2000)
-                    if not ok:
-                        print(f"  ✗ Block {blk_idx}/{total_blocks}: masscan 失败，跳过")
-                        block_done += 1
-                        skip = True
+                if state == "done":
+                    print(f"  ✅ Block {blk_idx}/{total_blocks}: 已完成，跳过")
+                    cf_file = os.path.join(self.scan_dir, f"block_{blk_idx:03d}_cf.txt")
+                    if os.path.exists(cf_file):
+                        with open(cf_file) as f:
+                            for line in f:
+                                line = line.strip()
+                                if line:
+                                    all_ips.append(line)
+                    block_done += 1
+                    skip = True
+                else:
+                    # 跑 masscan（如果没扫过）
+                    if state == "pending":
+                        cidrs_file = st["cidrs_file"]
+                        print(f"  🚀 Block {blk_idx}/{total_blocks}: 开始 masscan...")
+                        ok = run_masscan(blk_idx, cidrs_file, ports,
+                                        self.scan_dir, rate=2000)
+                        if not ok:
+                            print(f"  ✗ Block {blk_idx}/{total_blocks}: masscan 失败，跳过")
+                            block_done += 1
+                            skip = True
 
-                if not skip and state in ("pending", "verify_only", "verify_partial"):
-                    if self.cf_scanner:
-                        print(f"  🔍 Block {blk_idx}/{total_blocks}: 开始 cf-scanner 验证...")
-                        ok = run_verify(blk_idx, self.scan_dir, self.cf_scanner,
-                                       proxy=self.verify_proxy)
-                    else:
-                        print(f"  ⚠ Block {blk_idx}/{total_blocks}: cf-scanner 未找到，跳过验证")
-                        ok = False
-                    if not ok:
-                        block_done += 1
-                        skip = True
+                    if not skip and state in ("pending", "verify_only", "verify_partial"):
+                        if self.cf_scanner:
+                            print(f"  🔍 Block {blk_idx}/{total_blocks}: 开始 cf-scanner 验证...")
+                            ok = run_verify(blk_idx, self.scan_dir, self.cf_scanner,
+                                           proxy=self.verify_proxy)
+                        else:
+                            print(f"  ⚠ Block {blk_idx}/{total_blocks}: cf-scanner 未找到，跳过验证")
+                            ok = False
+                        if not ok:
+                            block_done += 1
+                            skip = True
 
-            if not skip:
-                # 收集结果
-                cf_file = os.path.join(self.scan_dir, f"block_{blk_idx:03d}_cf.txt")
-                if os.path.exists(cf_file):
-                    with open(cf_file) as f:
-                        for line in f:
-                            line = line.strip()
-                            if line:
-                                all_ips.append(line)
-                block_done += 1
+                if not skip:
+                    # 收集结果
+                    cf_file = os.path.join(self.scan_dir, f"block_{blk_idx:03d}_cf.txt")
+                    if os.path.exists(cf_file):
+                        with open(cf_file) as f:
+                            for line in f:
+                                line = line.strip()
+                                if line:
+                                    all_ips.append(line)
+                    block_done += 1
+
+            except KeyboardInterrupt:
+                print("\n  用户中断，保留已完成数据")
+                break
 
             # 进度条
             pct = block_done / total_blocks
