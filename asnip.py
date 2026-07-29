@@ -309,11 +309,11 @@ def _get_lan_ip() -> str | None:
 
 
 def _link(url: str, text: str | None = None) -> str:
-    """终端 ANSI 超链接（OSC 8）。不支持时降级为普通 URL。"""
+    """终端超链接：OSC 8 + ANSI 下划线。不支持 OSC 8 的终端也会保留下划线。"""
     if text is None:
         text = url
     try:
-        return f"\033]8;;{url}\033\\{text}\033]8;;\033\\"
+        return f"\033[4m\033]8;;{url}\033\\{text}\033]8;;\033\\\033[24m"
     except Exception:
         return text
 
