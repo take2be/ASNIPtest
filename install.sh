@@ -19,14 +19,7 @@
 19|echo -e "${BOLD}========================================${NC}"
 20|echo ""
 21|
-22|24|# ---- 步骤 0: 清理旧残留 ----
-25|echo -e "  ${BOLD}[0/4] 清理旧残留...${NC}"
-26|rm -f /usr/local/bin/asnip 2>/dev/null || true
-27|rm -f "${HOME}/.local/bin/asnip" 2>/dev/null || true
-28|rm -rf "${INSTALL_DIR}/bin" 2>/dev/null || true
-29|find /usr/local/bin -maxdepth 1 -name "asnip" \( -type l -o -type f \) -delete 2>/dev/null || true
-30|
-31|
+# ---- 步骤 1: 检测环境 ----
 32|# ---- 步骤 1: 检测环境 ----
 33|echo -e "${BOLD}[1/4] 检测环境...${NC}"
 34|OS="$(uname -s)"
