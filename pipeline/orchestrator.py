@@ -45,7 +45,8 @@ class Orchestrator:
 
     def run(self, asns: list[int], ports: str = DEFAULT_PORTS,
             force: bool = False, top_n: int | None = None,
-            json_output: bool = False, speed_top: int | None = None):
+            json_output: bool = False, speed_top: int | None = None,
+            rate: int = 2000):
         """运行全管线。"""
         start_total = time.time()
 
@@ -132,7 +133,7 @@ class Orchestrator:
                     if state == "pending":
                         cidrs_file = st["cidrs_file"]
                         ok = run_masscan(blk_idx, cidrs_file, ports,
-                                        self.scan_dir, rate=2000)
+                                                self.scan_dir, rate=rate)
                         if not ok:
                             block_done += 1
                             skip = True

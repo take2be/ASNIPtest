@@ -72,6 +72,8 @@ def main():
                               help="跳过依赖检查")
         subparser.add_argument("--daemon", action="store_true",
                               help="断线自动续跑模式：直到 report.csv 生成才退出")
+        subparser.add_argument("--rate", type=int, default=2000,
+                              help="masscan 扫描速率 pkts/s（默认 2000，小鸡建议800-1500）")
     
     # scan 子命令
     scan_parser = subparsers.add_parser("scan", help="扫描 ASN")
@@ -188,6 +190,7 @@ def cmd_scan(args):
                 top_n=args.top,
                 speed_top=0 if args.top or args.json else 0,
                 json_output=args.json,
+                rate=args.rate,
             )
             report_csv = os.path.join(PROJECT_DIR, "report.csv")
             if os.path.exists(report_csv) and os.path.getsize(report_csv) > 100:
@@ -204,6 +207,7 @@ def cmd_scan(args):
         top_n=args.top,
         speed_top=speed_top,
         json_output=args.json,
+        rate=args.rate,
     )
 
     # ---- 启动结果 HTTP 服务 ----
