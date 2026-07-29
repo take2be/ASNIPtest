@@ -38,7 +38,7 @@ source ~/.bashrc
 ### 一键卸载
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/take2be/ASNIPtest/master/uninstall.sh | bash
+curl -fsSL https://raw.githubusercontent.com/take2be/ASNIPtest/master/uninstall.sh | bash && source ~/.bashrc
 ```
 
 卸载会清理：安装目录 `~/.asnip` + 命令 + 缓存。
