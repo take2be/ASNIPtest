@@ -248,13 +248,12 @@ mkdir -p "$BIN_DIR"
 cat > "$BIN_DIR/irds" << 'SCRIPT'
 #!/usr/bin/env bash
 args="$*"
-if command -v screen >/dev/null 2>&1 && screen -list 2>/dev/null | grep -q '(asnip)'; then
-    echo "  检测到已有 asnip screen session，先用 screen -r asnip 查看"
-    exit 0
+# 先清理可能残留的旧 asnip session
+if command -v screen >/dev/null 2>&1; then
+    screen -ls | grep -oE '[0-9]+\.asnip' | cut -d. -f1 | xargs -r kill -9 2>/dev/null || true
 fi
-if command -v tmux >/dev/null 2>&1 && tmux has-session -t asnip 2>/dev/null; then
-    echo "  检测到已有 asnip tmux session，先用 tmux attach -t asnip 查看"
-    exit 0
+if command -v tmux >/dev/null 2>&1; then
+    tmux has-session -t asnip 2>/dev/null && tmux kill-session -t asnip 2>/dev/null || true
 fi
 runner=""
 if command -v screen >/dev/null 2>&1; then
