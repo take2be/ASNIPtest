@@ -218,18 +218,18 @@ echo ""
 
 # ---- 创建 asnip 命令（总是覆盖到最新）----
 mkdir -p "${INSTALL_DIR}/bin"
-cat > "${INSTALL_DIR}/bin/asnip" << SCRIPT
+ABSOLUTE_INSTALL_DIR="$(cd "${INSTALL_DIR}" && pwd)"
+cat > "${INSTALL_DIR}/bin/asnip" << 'SCRIPT'
 #!/usr/bin/env bash
-DIR="${INSTALL_DIR}/src"
+DIR="$(cd "$(dirname "$0")/../src" && pwd)"
 cd "$DIR"
 exec python3 asnip.py "$@"
 SCRIPT
 chmod +x "${INSTALL_DIR}/bin/asnip"
 
-# ---- 创建 ips 快捷命令 ----
-cat > "${INSTALL_DIR}/bin/ips" << SCRIPT
+cat > "${INSTALL_DIR}/bin/ips" << 'SCRIPT'
 #!/usr/bin/env bash
-DIR="${INSTALL_DIR}/src"
+DIR="$(cd "$(dirname "$0")/../src" && pwd)"
 cd "$DIR"
 exec python3 asnip.py scan "$@"
 SCRIPT
