@@ -254,10 +254,10 @@ fi
 runner=""
 command -v screen >/dev/null 2>&1 && runner=screen || command -v tmux >/dev/null 2>&1 && runner=tmux
 if [ -z "$runner" ]; then
-    exec ips --daemon $args
+    exec "${HOME}/.asnip/bin/ips" --daemon $args
 fi
 # daemon 循环：直到 report.csv 生成
-inner_cmd="trap '' HUP; while true; do ips --daemon $args; code=\$?; if [ \$code -eq 0 ] && [ -f \"\${HOME}/.asnip/src/scan_data/report.csv\" ]; then echo \"report.csv ready\"; break; fi; echo \"retry in 10s...\"; sleep 10; done"
+inner_cmd="trap '' HUP; while true; do \"${HOME}/.asnip/bin/ips\" --daemon $args; code=\$?; if [ \$code -eq 0 ] && [ -f \"\${HOME}/.asnip/src/scan_data/report.csv\" ]; then echo \"report.csv ready\"; break; fi; echo \"retry in 10s...\"; sleep 10; done"
 if [ "$runner" = "screen" ]; then
     screen -dmS asnip bash -c "$inner_cmd"
     sleep 0.5
@@ -313,6 +313,7 @@ echo -e " ${GREEN}✅ irds / irds-result 已注册到 $BIN_DIR/${NC}"
 # 创建 system symlink，立即可用，不依赖 bashrc
 ln -sf "$BIN_DIR/irds" /usr/local/bin/irds 2>/dev/null || true
 ln -sf "$BIN_DIR/irds-result" /usr/local/bin/irds-result 2>/dev/null || true
+ln -sf "$BIN_DIR/ips" /usr/local/bin/ips 2>/dev/null || true
 
 # ---- 完成 ----
 echo -e "${GREEN}${BOLD}========================================${NC}"
