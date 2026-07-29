@@ -160,14 +160,29 @@ def run_masscan(block_index: int, cidrs_file: str, ports: str,
     ]
 
     print(f"  🚀 Block {block_index}: masscan {ports} rate={rate}")
-    print(f"     日志: {out_tmp}")
     start = time.time()
 
-    result = subprocess.run(cmd, timeout=3600)
+    # 实时显示进度，不刷屏
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+    last_rate = ""
+    for line in proc.stdout:
+        line = line.rstrip()
+        if "rate:" in line and "kpps" in line:
+            # 只提取速率行
+            parts = line.strip().split("rate:")[1].strip().split("found=")
+            rate_str = parts[0].strip() if len(parts) > 1 else ""
+            found_str = parts[1].strip() if len(parts) > 1 else ""
+            if rate_str != last_rate:
+                sys.stdout.write(f"\r  ⏳ 扫描中: {rate_str}  命中={found_str}")
+                sys.stdout.flush()
+                last_rate = rate_str
+    proc.wait()
+    sys.stdout.write("\n")
+    sys.stdout.flush()
 
     elapsed = time.time() - start
-    if result.returncode != 0:
-        print(f"  ✗ Block {block_index}: masscan 失败 (rc={result.returncode})")
+    if proc.returncode != 0:
+        print(f"  ✗ Block {block_index}: masscan 失败 (rc={proc.returncode})")
         return False
 
     # 检查输出文件
@@ -232,14 +247,28 @@ def run_verify(block_index: int, workdir: str, cf_scanner_path: str,
         cmd += ["-proxy", proxy]
 
     print(f"  🔍 Block {block_index}: cf-scanner 验证 (workers={workers})")
-    print(f"     日志: {out_txt}")
     start = time.time()
 
-    result = subprocess.run(cmd, timeout=1800)
+    # 实时显示进度，不刷屏
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+    last_line = ""
+    for line in proc.stdout:
+        line = line.rstrip()
+        if not line:
+            continue
+        # 只显示关键行
+        if any(k in line for k in ["done", "error", "result", "open", "close", "timeout", "fail", "命中", "成功"]):
+            if line != last_line:
+                sys.stdout.write(f"\r  ⏳ 验证中: {line[:80]}")
+                sys.stdout.flush()
+                last_line = line
+    proc.wait()
+    sys.stdout.write("\n")
+    sys.stdout.flush()
 
     elapsed = time.time() - start
-    if result.returncode != 0:
-        print(f"  ✗ Block {block_index}: cf-scanner 失败 (rc={result.returncode})")
+    if proc.returncode != 0:
+        print(f"  ✗ Block {block_index}: cf-scanner 失败 (rc={proc.returncode})")
         return False
 
     if os.path.exists(out_txt) and os.path.getsize(out_txt) > 0:
