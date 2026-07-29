@@ -17,6 +17,31 @@ from .stage5_speed import speedtest_ip
 from .stage6_output import generate_report
 
 
+def _purge_expired_cidrs(scan_dir: str, ttl_seconds: int = 172800):
+    """删除超过 TTL 的 CIDR 文件（block_NNN_cidrs.txt）。
+    CIDR 文件保留 48h（172800s），其余缓存文件保留 24h。
+    """
+    if not os.path.isdir(scan_dir):
+        return
+    now = time.time()
+    removed = 0
+    for name in os.listdir(scan_dir):
+        if not name.endswith("_cidrs.txt"):
+            continue
+        fpath = os.path.join(scan_dir, name)
+        if not os.path.isfile(fpath):
+            continue
+        try:
+            mtime = os.path.getmtime(fpath)
+            if now - mtime >= ttl_seconds:
+                os.remove(fpath)
+                removed += 1
+        except OSError:
+            pass
+    if removed:
+        print(f"  🧹 清理过期 CIDR 文件: {removed} 个 (TTL={ttl_seconds}s)")
+
+
 class Orchestrator:
     """全管线编排器。"""
 
@@ -49,6 +74,9 @@ class Orchestrator:
             rate: int = 2000):
         """运行全管线。"""
         start_total = time.time()
+
+        # 清理过期 CIDR 文件（48h = 172800s TTL）
+        _purge_expired_cidrs(self.scan_dir, ttl_seconds=172800)
 
         print(f"\n{'='*60}")
         print(f"  ASNIPtest 全管线 — ASN: {', '.join(str(a) for a in asns)}")
@@ -313,7 +341,6 @@ class Orchestrator:
                 "alpn": sp.get("alpn", "-") if sp.get("alpn") else "-",
                 "verify_reason": "-",
                 "confidence": "-",
-                "source": row.get("source", "-"),
             })
 
         from asnip import _get_public_ip

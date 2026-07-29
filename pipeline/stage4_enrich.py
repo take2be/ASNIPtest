@@ -17,7 +17,8 @@ def enrich_ips(ip_ports: list[str], proxies: dict | None = None,
                on_progress=None) -> list[dict]:
     """对 IP:Port 列表补充 ASN/国家/组织。
 
-    返回: [{"ip_port", "asn", "country", "org", "is_cf_official", "source", "cached_at"}, ...]
+    返回: [{"ip_port", "asn", "country", "country_code", "region_name",
+               "city", "org", "is_cf_official"}, ...]
     """
     ensure_dirs()
     cf_asns = load_cf_official_asns()
@@ -34,7 +35,7 @@ def enrich_ips(ip_ports: list[str], proxies: dict | None = None,
         info = ip_info.get(ip, {
             "asn": "-", "country": "-", "country_code": "-",
             "region_name": "-", "city": "-", "org": "-",
-            "source": "-", "cached_at": "-",
+            "cached_at": "-",
         })
         results.append({
             "ip_port": ip_port,
@@ -45,7 +46,6 @@ def enrich_ips(ip_ports: list[str], proxies: dict | None = None,
             "city": info.get("city", "-"),
             "org": info["org"],
             "is_cf_official": info["asn"] in cf_asns if isinstance(info["asn"], int) else False,
-            "source": info["source"],
             "cached_at": info["cached_at"],
         })
         if on_progress:
@@ -54,16 +54,27 @@ def enrich_ips(ip_ports: list[str], proxies: dict | None = None,
     return results
 
 
+def _cache_valid(cached_at: str, ttl_seconds: int = 86400) -> bool:
+    """检查缓存是否在 TTL 内（ASN 缓存 24h = 86400s）。"""
+    if cached_at == "-":
+        return False
+    try:
+        ts = time.mktime(time.strptime(cached_at, "%Y-%m-%dT%H:%M:%S"))
+        return (time.time() - ts) < ttl_seconds
+    except Exception:
+        return False
+
+
 def _batch_lookup(ips: list[str], proxies: dict | None = None,
                   on_progress=None) -> dict:
     """批量查 IP 归属。cymru -> ip-api 回退链。"""
     result = {}
 
-    # 先查缓存
+    # 先查缓存（24h TTL）
     uncached = []
     for ip in ips:
         info = _read_cache(ip)
-        if info and info.get("asn") != "-":
+        if info and info.get("asn") != "-" and _cache_valid(info.get("cached_at", "-")):
             result[ip] = info
         else:
             uncached.append(ip)
