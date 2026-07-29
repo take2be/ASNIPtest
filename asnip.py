@@ -51,25 +51,35 @@ def main():
         prog="asnip",
         description="ASNIPtest — 按 ASN 扫描第三方 Cloudflare 反代 IP",
     )
-    parser.add_argument("action", nargs="?", default=None,
-                        choices=["scan", "ips"],
-                        help="操作: scan / ips（默认 scan）")
-    parser.add_argument("asn", nargs="?", default="",
-                        help="ASN 号（多个用逗号分隔）")
-    parser.add_argument("--ports", default="",
-                        help=f"端口集（默认交互输入）")
-    parser.add_argument("--port", type=int, default=8080,
-                        help="HTTP 服务端口（默认 8080）")
-    parser.add_argument("--force", action="store_true",
-                        help="忽略缓存强制刷新")
-    parser.add_argument("--top", type=int, default=None,
-                        help="只输出前 N 个结果")
-    parser.add_argument("--json", action="store_true",
-                        help="额外输出 JSON 格式报告")
-    parser.add_argument("--no-deps", action="store_true",
-                        help="跳过依赖检查")
-    parser.add_argument("--daemon", action="store_true",
-                        help="断线自动续跑模式：直到 report.csv 生成才退出")
+    
+    subparsers = parser.add_subparsers(dest="action", help="操作类型")
+    
+    # 共享参数定义函数
+    def add_common_args(subparser):
+        subparser.add_argument("asn", nargs="*", default=[""],
+                              help="ASN 号（多个用逗号分隔）")
+        subparser.add_argument("--ports", default="",
+                              help="端口集（默认交互输入）")
+        subparser.add_argument("--port", type=int, default=8080,
+                              help="HTTP 服务端口（默认 8080）")
+        subparser.add_argument("--force", action="store_true",
+                              help="忽略缓存强制刷新")
+        subparser.add_argument("--top", type=int, default=None,
+                              help="只输出前 N 个结果")
+        subparser.add_argument("--json", action="store_true",
+                              help="额外输出 JSON 格式报告")
+        subparser.add_argument("--no-deps", action="store_true",
+                              help="跳过依赖检查")
+        subparser.add_argument("--daemon", action="store_true",
+                              help="断线自动续跑模式：直到 report.csv 生成才退出")
+    
+    # scan 子命令
+    scan_parser = subparsers.add_parser("scan", help="扫描 ASN")
+    add_common_args(scan_parser)
+    
+    # ips 子命令
+    ips_parser = subparsers.add_parser("ips", help="扫描 ASN (ips 别名)")
+    add_common_args(ips_parser)
 
     args = parser.parse_args()
 
@@ -77,9 +87,10 @@ def main():
 
     if args.action in ("scan", "ips"):
         cmd_scan(args)
+    elif args.action is None:
+        parser.print_help()
     else:
         print(f"未知操作: {args.action}")
-        print("用法: asnip scan [ASN...] 或 asnip ips [ASN...]")
 
 
 def cmd_scan(args):
@@ -102,8 +113,8 @@ def cmd_scan(args):
 
     # ---- ASN/CIDR 输入 ----
     asns = []
-    if args.asn:
-        raw = args.asn
+    if args.asn and args.asn[0]:
+        raw = " ".join(args.asn)
     else:
         raw = input("  输入 ASN（多个用逗号分隔，如: 13335,209554）: ").strip()
     asns = []
