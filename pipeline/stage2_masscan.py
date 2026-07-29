@@ -163,20 +163,25 @@ def run_masscan(block_index: int, cidrs_file: str, ports: str,
     print(f"  🚀 Block {block_index}: masscan {ports} rate={rate}")
     start = time.time()
 
-    # 实时显示进度，不刷屏
+    # 实时显示进度，降频更新，不刷屏
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
     last_rate = ""
+    last_update = 0.0
     for line in proc.stdout:
         line = line.rstrip()
         if "rate:" in line and "kpps" in line:
-            # 只提取速率行
-            parts = line.strip().split("rate:")[1].strip().split("found=")
-            rate_str = parts[0].strip() if len(parts) > 1 else ""
-            found_str = parts[1].strip() if len(parts) > 1 else ""
-            if rate_str != last_rate:
-                sys.stdout.write(f"\r  ⏳ 扫描中: {rate_str}  命中={found_str}")
-                sys.stdout.flush()
-                last_rate = rate_str
+            try:
+                rate_str = line.strip().split("rate:")[1].strip().split("  found=")[0].strip()
+                found_str = line.strip().split("found=")[1].strip()
+            except Exception:
+                continue
+            now = time.time()
+            if rate_str != last_rate or found_str != last_rate:
+                if now - last_update >= 0.5:
+                    sys.stdout.write(f"\r  ⏳ 扫描中: {rate_str}  命中={found_str}")
+                    sys.stdout.flush()
+                    last_rate = f"{rate_str}|{found_str}"
+                    last_update = now
     proc.wait()
     sys.stdout.write("\n")
     sys.stdout.flush()
