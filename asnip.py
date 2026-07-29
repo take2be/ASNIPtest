@@ -255,26 +255,35 @@ def _serve_results(port: int = 8080):
     print("=" * 56)
     print()
 
-    print(f"  📄 CSV 报告: {os.path.join(results_dir, 'report.csv')}")
-    if os.path.exists(os.path.join(results_dir, "report.json")):
-        print(f"  📄 JSON 报告: {os.path.join(results_dir, 'report.json')}")
-
+    # 本地文件路径
+    csv_path = os.path.join(results_dir, "report.csv")
+    json_path = os.path.join(results_dir, "report.json")
+    _p_label = "  📄 "
+    print(f"{_p_label}CSV 报告:  {csv_path}")
+    if os.path.exists(json_path):
+        print(f"{_p_label}JSON 报告: {json_path}")
     print()
+
+    # HTTP 下载链接（局域网 / 公网）
     if lan_ip:
         url_local_csv = f"http://{lan_ip}:{port}/report.csv"
         url_local_json = f"http://{lan_ip}:{port}/report.json"
-        print(f"  🌐 局域网地址:  {_link(url_local_csv, url_local_csv)}")
-        print(f"                   {_link(url_local_json, url_local_json)}")
+        _l_label = "  🌐 局域网: "
+        print(f"{_l_label}{url_local_csv}")
+        print(f"{' ' * len(_l_label)}{url_local_json}")
 
     if public_ip:
         url_pub_csv = f"http://{public_ip}:{port}/report.csv"
         url_pub_json = f"http://{public_ip}:{port}/report.json"
-        print(f"  🌍 公网地址:    {_link(url_pub_csv, url_pub_csv)}")
-        print(f"                   {_link(url_pub_json, url_pub_json)}")
+        _g_label = "  🌍 公网地址: "
+        print(f"{_g_label}{url_pub_csv}")
+        print(f"{' ' * len(_g_label)}{url_pub_json}")
     else:
-        print(f"  🌍 公网地址:    获取失败（需公网 IP 和端口放行）")
+        print("  🌍 公网地址:    获取失败（需公网 IP 和端口放行）")
 
     print()
+    print("  提示：若浏览器打不开，请确认 VPS 防火墙已放行"
+          f" {port}/tcp。")
     print(f"  按 Ctrl+C 停止服务")
     print()
 
