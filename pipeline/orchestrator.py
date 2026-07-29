@@ -1,4 +1,5 @@
 """管线编排器：依次执行 ①→②→③→④→⑤→⑥。"""
+import ipaddress
 import json
 import os
 import sys
@@ -55,11 +56,17 @@ class Orchestrator:
         # === 1/6 ASN → CIDR ===
         print(f"[1/6 ASN→CIDR] {'='*40}")
         t0 = time.time()
-        prefixes = fetch_cidrs(asns, force=force, proxies=self.proxies)
+        prefixes = []
+        for idx, asn in enumerate(asns, 1):
+            pfx = fetch_cidrs([asn], force=force, proxies=self.proxies)
+            prefixes.extend(pfx)
+            print(f"  ⏳ AS{asn} [{idx}/{len(asns)}] → {len(pfx)} 段")
+        prefixes = sorted(set(prefixes), key=lambda x: (
+            ipaddress.IPv4Network(x, strict=False).network_address))
         if not prefixes:
             print("✗ 没有可扫描的 CIDR 段，退出")
             return
-        print(f"  → {len(prefixes)} 个可扫描段 ({format_duration(time.time()-t0)})")
+        print(f"  → 共 {len(prefixes)} 个可扫描段 ({format_duration(time.time()-t0)})")
         print()
 
         # === 2/6 masscan + 3/6 verify ===
@@ -98,10 +105,17 @@ class Orchestrator:
         # 检查各 block 状态（Resume）
         statuses = get_block_status(self.scan_dir, plan)
         all_ips = []  # 收集所有已验证的 IP:Port
+        total_blocks = len(statuses)
+        block_done = 0
+        bar_width = 24
+        last_len = 0
 
         for st in statuses:
             blk_idx = st["index"]
-            if st["state"] == "done":
+            state = st["state"]
+            skip = False
+
+            if state == "done":
                 print(f"  ✅ Block {blk_idx}: 已完成，跳过")
                 cf_file = os.path.join(self.scan_dir, f"block_{blk_idx:03d}_cf.txt")
                 if os.path.exists(cf_file):
@@ -110,36 +124,53 @@ class Orchestrator:
                             line = line.strip()
                             if line:
                                 all_ips.append(line)
-                continue
+                block_done += 1
+                skip = True
+            else:
+                # 跑 masscan（如果没扫过）
+                if state == "pending":
+                    cidrs_file = st["cidrs_file"]
+                    ok = run_masscan(blk_idx, cidrs_file, ports,
+                                    self.scan_dir, rate=2000)
+                    if not ok:
+                        print(f"  ✗ Block {blk_idx}: masscan 失败，跳过")
+                        block_done += 1
+                        skip = True
 
-            # 跑 masscan（如果没扫过）
-            if st["state"] == "pending":
-                cidrs_file = st["cidrs_file"]
-                ok = run_masscan(blk_idx, cidrs_file, ports,
-                                self.scan_dir, rate=2000)
-                if not ok:
-                    print(f"  ✗ Block {blk_idx}: masscan 失败，跳过")
-                    continue
+                if not skip and state in ("pending", "verify_only", "verify_partial"):
+                    if self.cf_scanner:
+                        ok = run_verify(blk_idx, self.scan_dir, self.cf_scanner,
+                                       proxy=self.verify_proxy)
+                    else:
+                        print(f"  ⚠ Block {blk_idx}: cf-scanner 未找到，跳过验证")
+                        ok = False
+                    if not ok:
+                        block_done += 1
+                        skip = True
 
-            # 跑 verify（如果有 masscan 结果）
-            if st["state"] in ("pending", "verify_only", "verify_partial"):
-                if self.cf_scanner:
-                    ok = run_verify(blk_idx, self.scan_dir, self.cf_scanner,
-                                   proxy=self.verify_proxy)
-                else:
-                    print(f"  ⚠ Block {blk_idx}: cf-scanner 未找到，跳过验证")
-                    ok = False
-                if not ok:
-                    continue
+            if not skip:
+                # 收集结果
+                cf_file = os.path.join(self.scan_dir, f"block_{blk_idx:03d}_cf.txt")
+                if os.path.exists(cf_file):
+                    with open(cf_file) as f:
+                        for line in f:
+                            line = line.strip()
+                            if line:
+                                all_ips.append(line)
+                block_done += 1
 
-            # 收集结果
-            cf_file = os.path.join(self.scan_dir, f"block_{blk_idx:03d}_cf.txt")
-            if os.path.exists(cf_file):
-                with open(cf_file) as f:
-                    for line in f:
-                        line = line.strip()
-                        if line:
-                            all_ips.append(line)
+            # 进度条
+            pct = block_done / total_blocks
+            filled = int(bar_width * pct)
+            bar = "█" * filled + " " * (bar_width - filled)
+            sys.stdout.write("\r" + " " * last_len + "\r")
+            line = f"  进度: {block_done}/{total_blocks} ({pct*100:.0f}%) |{bar}|"
+            sys.stdout.write(line)
+            sys.stdout.flush()
+            last_len = len(line)
+
+        sys.stdout.write("\n")
+        sys.stdout.flush()
 
         # 解析 verify 结果（CSV 格式：ip,port,colo,cfray,status,conf）
         verified_ips = []
@@ -164,9 +195,31 @@ class Orchestrator:
         # === 4/6 enrich ===
         print(f"[4/6 enrich] {'='*40}")
         t2 = time.time()
-        enriched = enrich_ips(verified_ips, proxies=self.proxies)
-        print(f"  → {len(enriched)} 条补充元数据 ({format_duration(time.time()-t2)})")
+        bar_width = 24
+        last_len = 0
+        total_enrich = len(verified_ips)
+
+        def _enrich_progress(done: int, total: int):
+            nonlocal last_len
+            pct = done / total if total else 1
+            filled = int(bar_width * pct)
+            bar = "█" * filled + " " * (bar_width - filled)
+            sys.stdout.write("\r" + " " * last_len + "\r")
+            line = f"  补充元数据: {done}/{total} ({pct*100:.0f}%) |{bar}|"
+            sys.stdout.write(line)
+            sys.stdout.flush()
+            last_len = len(line)
+
+        enriched = enrich_ips(
+            verified_ips,
+            proxies=self.proxies,
+            on_progress=lambda done: _enrich_progress(done, total_enrich),
+        )
+        sys.stdout.write("\n")
+        sys.stdout.flush()
+
         cf_official = sum(1 for r in enriched if r.get("is_cf_official"))
+        print(f"  → {len(enriched)} 条补充元数据 ({format_duration(time.time()-t2)})")
         print(f"  → 其中 CF 官方 ASN: {cf_official} 条")
         print()
 

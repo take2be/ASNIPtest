@@ -13,7 +13,8 @@ import urllib.request
 from .utils import load_cf_official_asns, ensure_dirs, CACHE_DIR
 
 
-def enrich_ips(ip_ports: list[str], proxies: dict | None = None) -> list[dict]:
+def enrich_ips(ip_ports: list[str], proxies: dict | None = None,
+               on_progress=None) -> list[dict]:
     """对 IP:Port 列表补充 ASN/国家/组织。
 
     返回: [{"ip_port", "asn", "country", "org", "is_cf_official", "source", "cached_at"}, ...]
@@ -26,7 +27,7 @@ def enrich_ips(ip_ports: list[str], proxies: dict | None = None) -> list[dict]:
     unique_ips = list({ip_port.split(":")[0] for ip_port in ip_ports if ":" in ip_port})
 
     # 查 IP 归属
-    ip_info = _batch_lookup(unique_ips, proxies=proxies)
+    ip_info = _batch_lookup(unique_ips, proxies=proxies, on_progress=on_progress)
 
     for ip_port in ip_ports:
         ip = ip_port.split(":")[0]
@@ -41,11 +42,14 @@ def enrich_ips(ip_ports: list[str], proxies: dict | None = None) -> list[dict]:
             "source": info["source"],
             "cached_at": info["cached_at"],
         })
+        if on_progress:
+            on_progress(len(results))
 
     return results
 
 
-def _batch_lookup(ips: list[str], proxies: dict | None = None) -> dict:
+def _batch_lookup(ips: list[str], proxies: dict | None = None,
+                  on_progress=None) -> dict:
     """批量查 IP 归属。cymru -> ip-api 回退链。"""
     result = {}
 
