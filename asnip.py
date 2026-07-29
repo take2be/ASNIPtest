@@ -51,8 +51,9 @@ def main():
         prog="asnip",
         description="ASNIPtest — 按 ASN 扫描第三方 Cloudflare 反代 IP",
     )
-    parser.add_argument("action", nargs="?", default="scan",
-                        help="操作: scan (默认)")
+    parser.add_argument("action", nargs="?", default=None,
+                        choices=["scan", "ips"],
+                        help="操作: scan / ips（默认 scan）")
     parser.add_argument("asn", nargs="?", default="",
                         help="ASN 号（多个用逗号分隔）")
     parser.add_argument("--ports", default="",
@@ -72,11 +73,11 @@ def main():
 
     os.chdir(PROJECT_DIR)
 
-    if args.action == "scan":
+    if args.action in ("scan", "ips"):
         cmd_scan(args)
     else:
         print(f"未知操作: {args.action}")
-        print("用法: asnip scan [ASN...]")
+        print("用法: asnip scan [ASN...] 或 asnip ips [ASN...]")
 
 
 def cmd_scan(args):
@@ -85,6 +86,8 @@ def cmd_scan(args):
     print("=" * 56)
     print("  🔍 ASNIPtest — 第三方 Cloudflare 反代 IP 优选工具")
     print("=" * 56)
+    print()
+    print("  快捷操作：Ctrl+Z 暂停 | fg 恢复 | Ctrl+C 停止")
     print()
 
     # ---- 依赖检查 ----

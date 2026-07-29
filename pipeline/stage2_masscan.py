@@ -163,27 +163,21 @@ def run_masscan(block_index: int, cidrs_file: str, ports: str,
     print(f"  🚀 Block {block_index}: masscan {ports} rate={rate}")
     start = time.time()
 
-    # 实时显示进度，降频更新，不刷屏
+    # 仅在实际发现端口数变化时更新显示，避免刷屏
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
-    last_rate = ""
-    last_update = 0.0
+    last_found = ""
     try:
         for line in proc.stdout:
             line = line.rstrip()
-            if "rate:" in line and "kpps" in line:
+            if "rate:" in line and "kpps" in line and "found=" in line:
                 try:
-                    after_rate = line.split("rate:", 1)[1].strip()
-                    rate_str = after_rate.split(",", 1)[0].strip()
-                    found_str = line.split("found=", 1)[1].strip() if "found=" in line else "?"
+                    found_str = line.split("found=", 1)[1].strip()
                 except Exception:
                     continue
-                now = time.time()
-                key = f"{rate_str}|{found_str}"
-                if key != last_rate and now - last_update >= 0.5:
-                    sys.stdout.write(f"\r  ⏳ 扫描中: {rate_str}, 命中={found_str}")
+                if found_str != last_found:
+                    sys.stdout.write(f"\r  ⏳ 扫描中: 命中={found_str}")
                     sys.stdout.flush()
-                    last_rate = key
-                    last_update = now
+                    last_found = found_str
     except KeyboardInterrupt:
         proc.terminate()
         try:
