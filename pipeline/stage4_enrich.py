@@ -154,7 +154,8 @@ def _query_ipapi_batch(ips: list[str], proxies: dict | None = None) -> dict:
                 if not ip:
                     continue
                 asn_str = entry.get("as", "")
-                asn = int(asn_str.replace("AS", "")) if asn_str and asn_str.replace("AS", "").isdigit() else "-"
+                asn_match = __import__("re").search(r"AS(\d+)", asn_str)
+                asn = int(asn_match.group(1)) if asn_match else "-"
                 result[ip] = {
                     "asn": asn,
                     "country": entry.get("country", "-"),
