@@ -25,7 +25,7 @@
 ### 一键安装
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/take2be/ASNIPtest/master/install.sh)
+curl -fsSL https://raw.githubusercontent.com/take2be/ASNIPtest/master/install.sh | bash
 ```
 
 安装目录：`~/.asnip/`，命令：`asnip`
@@ -35,7 +35,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/take2be/ASNIPtest/master/ins
 ### 一键卸载
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/take2be/ASNIPtest/master/uninstall.sh)
+curl -fsSL https://raw.githubusercontent.com/take2be/ASNIPtest/master/uninstall.sh | bash
 ```
 
 卸载会清理：安装目录 `~/.asnip` + `asnip` 命令 + 缓存。
@@ -150,7 +150,7 @@ http://<your-vps-ip>:8080/report.json
 
 ```bash
 rm -rf ~/.asnip
-bash <(curl -fsSL https://raw.githubusercontent.com/take2be/ASNIPtest/master/install.sh)
+curl -fsSL https://raw.githubusercontent.com/take2be/ASNIPtest/master/install.sh | bash
 ```
 
 ### masscan 报错 Permission denied？
