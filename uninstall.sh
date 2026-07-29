@@ -27,7 +27,14 @@ rm -f /tmp/asnip-install.sh 2>/dev/null || true
 
 # 从 PATH 里去掉
 for f in "$HOME/.bashrc" "$HOME/.zshrc" "$HOME/.profile" "$HOME/.bash_profile"; do
-    if [ -f "$f" ]; then sed -i "/\.asnip\/bin/d" "$f" 2>/dev/null || true; fi
+    if [ -f "$f" ]; then sed -i "/\\.asnip\\/bin/d" "$f" 2>/dev/null || true; fi
+done
+
+# 清掉可能残留的函数定义
+for f in "$HOME/.bashrc" "$HOME/.zshrc"; do
+    if [ -f "$f" ]; then
+        sed -i '/^# ASNIPtest:/,/^}/d' "$f" 2>/dev/null || true
+    fi
 done
 
 echo "✅ 卸载完成"
