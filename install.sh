@@ -268,13 +268,16 @@ fi
 inner_cmd="trap '' HUP; while true; do ips --daemon $args; code=\$?; if [ \$code -eq 0 ]; then if [ -f \"${HOME}/.asnip/src/scan_data/report.csv\" ]; then echo \"报告文件已生成: ${HOME}/.asnip/src/scan_data/report.csv\"; break; fi; fi; echo \"上次执行结束(exit=\$code)且未见 report.csv，10秒后自动续跑...\"; sleep 10; done"
 if [ "$runner" = "screen" ]; then
     screen -dmS asnip bash -c "$inner_cmd"
+    sleep 0.5
+    screen -r asnip
 else
     tmux new-session -d -s asnip bash -c "$inner_cmd"
+    tmux attach -t asnip
 fi
-disown
-echo "  已在后台启动($runner session: asnip，daemon 守护模式)"
-echo "  查看: $runner -r asnip"
-echo "  结果: irds-result"
+disown 2>/dev/null || true
+echo "  已在后台启动(screen session: asnip，daemon 守护模式)"
+echo "  看进度: screen -r asnip      (Ctrl+A D  detached 返回)"
+echo "  查结果: irds-result"
 SCRIPT
 chmod +x "$BIN_DIR/irds"
 
