@@ -217,6 +217,7 @@ class Orchestrator:
 
         # 解析 verify 结果（CSV 格式：ip,port,colo,cfray,status,conf）
         verified_ips = []
+        colo_map = {}
         for item in all_ips:
             line = item.strip()
             if not line or line.startswith("ip,"):
@@ -225,8 +226,12 @@ class Orchestrator:
             if len(parts) >= 2:
                 ip = parts[0].strip()
                 port = parts[1].strip()
+                colo = parts[2].strip() if len(parts) >= 3 else ""
                 if ip and port:
-                    verified_ips.append(f"{ip}:{port}")
+                    ip_port = f"{ip}:{port}"
+                    verified_ips.append(ip_port)
+                    if colo:
+                        colo_map[ip_port] = colo
 
         print(f"\n  → 共 {len(verified_ips)} 个已验证 IP ({format_duration(time.time()-t1)})")
         print()
@@ -335,6 +340,7 @@ class Orchestrator:
                 "org": row["org"],
                 "is_cf_official": row["is_cf_official"],
                 "ip_type": ip_type,
+                "colo": colo_map.get(ip_port, "-"),
                 "latency_ms": sp.get("latency_ms", "-"),
                 "download_mbps": sp.get("download_mbps", 0),
                 "tls": sp.get("tls", "-") if sp.get("tls") else "-",
@@ -353,6 +359,7 @@ class Orchestrator:
             keep_cf_official=False,
             json_output=json_output,
             public_ip=public_ip,
+            colo_map=colo_map,
         )
 
         total_elapsed = time.time() - start_total

@@ -34,7 +34,8 @@ def generate_report(ip_data: list[dict], output_dir: str = ".",
                     top_n: int | None = None,
                     keep_cf_official: bool = False,
                     json_output: bool = False,
-                    public_ip: str = "-") -> dict:
+                    public_ip: str = "-",
+                    colo_map: dict | None = None) -> dict:
     """生成最终报告（17 列）。
 
     列顺序（用户指定，不含 WARP/Gateway/RBI/密钥交换/时间戳）:
@@ -91,8 +92,8 @@ def generate_report(ip_data: list[dict], output_dir: str = ".",
                 ip,                           # IP地址
                 port,                         # 端口号
                 row.get("tls", "-"),          # TLS
-                "-",                          # 数据中心(colo, 待 cf-scanner 传)
-                row.get("country", "-"),      # IP位置
+                row.get("colo", "-"),          # 数据中心(colo, cf-scanner)
+                row.get("country", "-"),       # IP位置
                 row.get("region_name", "-"),  # 地区
                 row.get("city", "-"),         # 城市
                 region,                       # 地区(中文)
@@ -122,7 +123,7 @@ def generate_report(ip_data: list[dict], output_dir: str = ".",
                 "ip": ip,
                 "port": port,
                 "tls": row.get("tls", "-"),
-                "colo": "-",
+                "colo": row.get("colo", "-"),
                 "country": row.get("country", "-"),
                 "country_code": cc,
                 "region_name": row.get("region_name", "-"),
