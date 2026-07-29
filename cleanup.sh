@@ -1,28 +1,19 @@
 #!/usr/bin/env bash
-# ASNIPtest 一键卸载脚本
+# ASNIPtest — 一键清理老旧/损坏安装
 set -euo pipefail
 
 INSTALL_DIR="${HOME}/.asnip"
+echo "🧹 清理 ASNIPtest 临时/损坏文件..."
 
-echo "🗑  ASNIPtest 卸载中..."
-
-# 删所有可能的命令入口
 rm -f /usr/local/bin/asnip 2>/dev/null || true
 rm -f "${HOME}/.local/bin/asnip" 2>/dev/null || true
 rm -f "${HOME}/bin/asnip" 2>/dev/null || true
-find /usr/local/bin -maxdepth 1 -name "asnip" \( -type l -o -type f \) -delete 2>/dev/null || true
-
-# 删安装目录（含 bin / src / config）
 rm -rf "$INSTALL_DIR" 2>/dev/null || true
-
-# 删临时文件
 rm -rf /tmp/asnip-dl 2>/dev/null || true
 rm -f /tmp/asnip-install.sh 2>/dev/null || true
 
-# 从 PATH 里去掉
 for f in "$HOME/.bashrc" "$HOME/.zshrc" "$HOME/.profile" "$HOME/.bash_profile"; do
     if [ -f "$f" ]; then sed -i "/\.asnip\/bin/d" "$f" 2>/dev/null || true; fi
 done
 
-echo "✅ 卸载完成"
-echo "   已清理: ~/.asnip、/usr/local/bin/asnip、~/.local/bin/asnip、PATH 条目、临时缓存"
+echo "✅ 清理完成：$INSTALL_DIR、/usr/local/bin/asnip、~/.local/bin/asnip、shell PATH、临时缓存"

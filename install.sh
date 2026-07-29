@@ -19,6 +19,13 @@ echo -e "${BOLD}  ASNIPtest — CF 反代 IP 优选工具${NC}"
 echo -e "${BOLD}========================================${NC}"
 echo ""
 
+# ---- 步骤 0: 清理旧残留 ----
+echo -e "  ${BOLD}[0/4] 清理旧残留...${NC}"
+rm -f /usr/local/bin/asnip 2>/dev/null || true
+rm -f "${HOME}/.local/bin/asnip" 2>/dev/null || true
+rm -rf "${INSTALL_DIR}/bin" 2>/dev/null || true
+find /usr/local/bin -maxdepth 1 -name "asnip" \( -type l -o -type f \) -delete 2>/dev/null || true
+
 # ---- 步骤 1: 检测环境 ----
 echo -e "${BOLD}[1/4] 检测环境...${NC}"
 OS="$(uname -s)"
