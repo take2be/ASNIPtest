@@ -73,7 +73,7 @@ def main():
         subparser.add_argument("--daemon", action="store_true",
                               help="断线自动续跑模式：直到 report.csv 生成才退出")
         subparser.add_argument("--rate", type=int, default=2000,
-                              help="masscan 扫描速率 pkts/s（默认 2000，小鸡建议800-1500）")
+                              help="masscan 扫描速率 pkts/s（默认 2000，自适应最小 2000 最大 5000）")
     
     # scan 子命令
     scan_parser = subparsers.add_parser("scan", help="扫描 ASN")
@@ -86,6 +86,8 @@ def main():
     args = parser.parse_args()
 
     os.chdir(PROJECT_DIR)
+
+    args.rate = max(args.rate, 2000)  # rate 自适应下限 2000
 
     if args.action in ("scan", "ips"):
         cmd_scan(args)

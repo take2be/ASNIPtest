@@ -139,15 +139,16 @@ def get_block_status(workdir: str, plan: dict) -> list[dict]:
 
 
 def run_masscan(block_index: int, cidrs_file: str, ports: str,
-                workdir: str, rate: int = 2000) -> bool:
+                workdir: str, rate: int = 2000) -> tuple[bool, float]:
     """跑 masscan 扫描一个 block。
 
-    输出: workdir/block_NNN.json.tmp → (成功) os.replace → block_NNN.json
+    返回: (success: bool, actual_kpps: float)
+    actual_kpps 是 block 结束时 masscan 报告的实际 kpps，供调用方做 rate 自适应。
     """
     cidrs_path = os.path.join(workdir, cidrs_file)
     if not os.path.exists(cidrs_path) or os.path.getsize(cidrs_path) == 0:
         print(f"  ⚠ Block {block_index}: CIDR 文件为空，跳过")
-        return False
+        return False, 0.0
 
     out_tmp = os.path.join(workdir, f"block_{block_index:03d}.json.tmp")
     out_final = os.path.join(workdir, f"block_{block_index:03d}.json")
@@ -175,12 +176,11 @@ def run_masscan(block_index: int, cidrs_file: str, ports: str,
     last_found = ""
     _seen = set()
     append_lock = threading.Lock()
+    actual_kpps = 0.0
+    last_json_size = 0
+    poll_time = time.time()
     try:
         with open(targets_tmp, "w") as _f_tmp:
-            # masscan 通过 -oJ 直接写 JSON 到文件，stdout 只有状态行
-            # 定期从 JSON 文件增量读取已发现的 IP:Port
-            last_json_size = 0
-            poll_time = time.time()
             for line in proc.stdout:
                 line = line.rstrip()
                 m = re.search(r"rate:\s+([0-9.]+)-kpps,\s+([0-9.]+)%\s+done.*found=(\d+)", line)
@@ -188,13 +188,16 @@ def run_masscan(block_index: int, cidrs_file: str, ports: str,
                     rate_str = m.group(1).strip()
                     done_str = m.group(2).strip()
                     found_str = m.group(3).strip()
+                    try:
+                        actual_kpps = float(rate_str)
+                    except ValueError:
+                        pass
                     display = f"\r  ⏳ {done_str}%  命中={found_str}  速率={rate_str}-kpps"
                     display = display.encode('utf-8', errors='replace').decode('utf-8', errors='replace')
                     if found_str != last_found:
                         sys.stdout.write(display)
                         sys.stdout.flush()
                         last_found = found_str
-                # 每秒尝试从 JSON 文件读新 IP（增量）
                 now = time.time()
                 if now - poll_time >= 1.0:
                     poll_time = now
@@ -212,7 +215,7 @@ def run_masscan(block_index: int, cidrs_file: str, ports: str,
         except subprocess.TimeoutExpired:
             proc.kill()
         print("\n  已取消扫描")
-        return False
+        return False, 0.0
     proc.wait()
     sys.stdout.write("\n")
     sys.stdout.flush()
@@ -220,7 +223,7 @@ def run_masscan(block_index: int, cidrs_file: str, ports: str,
     elapsed = time.time() - start
     if proc.returncode != 0:
         print(f"  ✗ Block {block_index}: masscan 失败 (rc={proc.returncode})")
-        return False
+        return False, actual_kpps
 
     # 检查输出文件
     if not os.path.exists(out_tmp) or os.path.getsize(out_tmp) < 10:
@@ -230,7 +233,7 @@ def run_masscan(block_index: int, cidrs_file: str, ports: str,
             f.write("[]")
         os.replace(out_tmp, out_final)
         print(f"  ✅ Block {block_index}: 完成 ({elapsed:.1f}s, 0 开放端口)")
-        return True
+        return True, actual_kpps
 
     os.replace(out_tmp, out_final)
     # 统计开放端口数
@@ -242,7 +245,7 @@ def run_masscan(block_index: int, cidrs_file: str, ports: str,
         except Exception:
             count = 0
     print(f"  ✅ Block {block_index}: 完成 ({elapsed:.1f}s, {count} 开放端口)")
-    return True
+    return True, actual_kpps
 
 
 def run_verify(block_index: int, workdir: str, cf_scanner_path: str,

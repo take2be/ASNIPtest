@@ -132,8 +132,17 @@ class Orchestrator:
                     # 跑 masscan（如果没扫过）
                     if state == "pending":
                         cidrs_file = st["cidrs_file"]
-                        ok = run_masscan(blk_idx, cidrs_file, ports,
-                                                self.scan_dir, rate=rate)
+                        ok, actual_kpps = run_masscan(
+                            blk_idx, cidrs_file, ports,
+                            self.scan_dir, rate=rate)
+                        # rate 自适应（最小 2000，最大 5000）
+                        if actual_kpps > 0:
+                            if actual_kpps >= rate * 0.9 and rate < 5000:
+                                rate = rate + 1000
+                                print(f"  ↗ 自适应提速 → rate={rate} (实际 {actual_kpps:.1f} kpps)")
+                            elif actual_kpps < rate * 0.7 and rate > 2000:
+                                rate = rate - 1000
+                                print(f"  ↘ 自适应降速 → rate={rate} (实际 {actual_kpps:.1f} kpps)")
                         if not ok:
                             block_done += 1
                             skip = True

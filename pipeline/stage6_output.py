@@ -113,6 +113,9 @@ def generate_report(ip_data: list[dict], output_dir: str = ".",
         for row in rows:
             ip, port = _split_ip_port(row.get("ip_port", ""))
             cc = row.get("country_code", "-")
+            ip_port_str = row.get("ip_port", "")
+            ip_only = ip_port_str.rsplit(":", 1)[0] if ":" in ip_port_str else ip_port_str
+            ip_version = "IPv6" if ":" in ip_only else "IPv4"
             proto = _access_protocol(
                 row.get("tls", "-"), row.get("alpn", "-"))
             json_rows.append({
@@ -128,8 +131,8 @@ def generate_report(ip_data: list[dict], output_dir: str = ".",
                 "region_cn": _country_region(cc),
                 "flag": _country_flag(cc),
                 "latency_ms": row.get("latency_ms", "-"),
-                "public_ip": public_ip,
-                "ip_type": row.get("ip_port_type", "IPv4"),
+                "public_ip": ip,
+                "ip_type": ip_version,
                 "ip_category": row.get("ip_type", "未知"),
                 "asn": row.get("asn", "-"),
                 "org": row.get("org", "-"),
