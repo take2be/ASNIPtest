@@ -220,7 +220,8 @@ echo ""
 mkdir -p "${INSTALL_DIR}/bin"
 {
   echo '#!/usr/bin/env bash'
-  echo 'DIR="$(cd "$(dirname "$0")/../src" && pwd)"'
+  echo 'self="$(readlink -f "$0" 2>/dev/null || realpath "$0" 2>/dev/null || echo "$0")"'
+  echo 'DIR="$(cd "$(dirname "$self")/../src" && pwd)"'
   echo 'cd "$DIR"'
   echo 'exec python3 asnip.py "$@"'
 } > "${INSTALL_DIR}/bin/asnip"
@@ -228,7 +229,8 @@ chmod +x "${INSTALL_DIR}/bin/asnip"
 
 {
   echo '#!/usr/bin/env bash'
-  echo 'DIR="$(cd "$(dirname "$0")/../src" && pwd)"'
+  echo 'self="$(readlink -f "$0" 2>/dev/null || realpath "$0" 2>/dev/null || echo "$0")"'
+  echo 'DIR="$(cd "$(dirname "$self")/../src" && pwd)"'
   echo 'cd "$DIR"'
   echo 'exec python3 asnip.py scan "$@"'
 } > "${INSTALL_DIR}/bin/ips"
@@ -257,7 +259,7 @@ if [ -z "$runner" ]; then
     exec "${HOME}/.asnip/bin/ips" $args --daemon
 fi
 # daemon 循环：直到 report.csv 生成
-inner_cmd="trap '' HUP; while true; do \"${HOME}/.asnip/bin/ips\" $args --daemon; code=\$?; if [ \$code -eq 0 ] && [ -f \"\${HOME}/.asnip/src/scan_data/report.csv\" ]; then echo \"report.csv ready\"; break; fi; echo \"retry in 10s...\"; sleep 10; done"
+inner_cmd="trap '' HUP; while true; do \"${HOME}/.asnip/bin/ips\" $args --daemon; code=\$?; if [ \$code -eq 0 ] && [ -f \"${HOME}/.asnip/src/scan_data/report.csv\" ]; then echo \"report.csv ready\"; break; fi; echo \"retry (exit=\$code) in 10s...\"; sleep 10; done"
 if [ "$runner" = "screen" ]; then
     screen -dmS asnip bash -c "$inner_cmd"
     sleep 0.5

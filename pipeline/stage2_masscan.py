@@ -291,35 +291,39 @@ def run_verify(block_index: int, workdir: str, cf_scanner_path: str,
     print(f"  🔍 Block {block_index}: cf-scanner 验证 (workers={workers})")
     start = time.time()
 
-    # 基于输出文件行数实时展示验证进度
+    # 验证进度 — 单行显示（同 masscan block 逻辑）
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
     total_targets = sum(1 for _ in open(targets_file, "r")) if os.path.exists(targets_file) else 0
-    last_count = 0
-    last_err = ""
+    last_display = ""
 
-    # 定期刷新进度
     import time as _time
     try:
         while proc.poll() is None:
-            if os.path.exists(out_txt):
-                with open(out_txt, "r") as f:
-                    lines = f.readlines()
-                count = sum(1 for l in lines if l.strip() and not l.startswith("ip,"))
-                if count != last_count:
-                    pct = count / total_targets if total_targets else 0
-                    bar = "█" * int(24 * pct) + " " * (24 - int(24 * pct))
-                    sys.stdout.write(f"\r  ⏳ 验证: {count}/{total_targets} ({pct*100:.0f}%) |{bar}|")
-                    sys.stdout.flush()
-                    last_count = count
-            # 非阻塞读 stderr
             if proc.stdout:
                 line = proc.stdout.readline()
                 if line:
                     line = line.rstrip()
-                    if line and line != last_err:
-                        sys.stdout.write(f"\n  ⚠ {line[:100]}\n")
-                        sys.stdout.flush()
-                        last_err = line
+                    if not line:
+                        continue
+                    # 解析 cf-scanner 进度行:
+                    #   "Scanned X/Y (Z%) | R/s | hits=N"
+                    m = re.search(
+                        r"Scanned\s+\d+/(\d+)\s+\(([0-9.]+)%\)\s+\|\s+(\d+)/s\s+\|\s+hits=(\d+)",
+                        line,
+                    )
+                    if m:
+                        pct, rate, hits = m.group(2), m.group(3), m.group(4)
+                        display = f"\r  ⏳ 验证: {pct}% | {rate}/s | hits={hits}"
+                        if display != last_display:
+                            sys.stdout.write(display)
+                            sys.stdout.flush()
+                            last_display = display
+                    else:
+                        # 非进度行（初始信息/错误等）→ 去重打印
+                        if line != last_display:
+                            sys.stdout.write(f"\n  ⚠ {line[:100]}\n")
+                            sys.stdout.flush()
+                            last_display = line
             _time.sleep(0.1)
     except KeyboardInterrupt:
         proc.terminate()
