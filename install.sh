@@ -218,21 +218,20 @@ echo ""
 
 # ---- 创建 asnip 命令（总是覆盖到最新）----
 mkdir -p "${INSTALL_DIR}/bin"
-ABSOLUTE_INSTALL_DIR="$(cd "${INSTALL_DIR}" && pwd)"
-cat > "${INSTALL_DIR}/bin/asnip" << 'SCRIPT'
-#!/usr/bin/env bash
-DIR="$(cd "$(dirname "$0")/../src" && pwd)"
-cd "$DIR"
-exec python3 asnip.py "$@"
-SCRIPT
+{
+  echo '#!/usr/bin/env bash'
+  echo 'DIR="$(cd "$(dirname "$0")/../src" && pwd)"'
+  echo 'cd "$DIR"'
+  echo 'exec python3 asnip.py "$@"'
+} > "${INSTALL_DIR}/bin/asnip"
 chmod +x "${INSTALL_DIR}/bin/asnip"
 
-cat > "${INSTALL_DIR}/bin/ips" << 'SCRIPT'
-#!/usr/bin/env bash
-DIR="$(cd "$(dirname "$0")/../src" && pwd)"
-cd "$DIR"
-exec python3 asnip.py scan "$@"
-SCRIPT
+{
+  echo '#!/usr/bin/env bash'
+  echo 'DIR="$(cd "$(dirname "$0")/../src" && pwd)"'
+  echo 'cd "$DIR"'
+  echo 'exec python3 asnip.py scan "$@"'
+} > "${INSTALL_DIR}/bin/ips"
 chmod +x "${INSTALL_DIR}/bin/ips"
 
 # 清理可能残留的旧 broken symlink
@@ -241,21 +240,44 @@ rm -f /usr/local/bin/asnip /usr/local/bin/ips 2>/dev/null || true
 # 当前交互 shell 立刻生效
 export PATH="${INSTALL_DIR}/bin:$PATH"
 
-# ---- 注册 irds 快捷函数（防 SSH 断线 + 自动续跑） ----
+# ---- 注册 irds 快捷函数（防 SSH 断线 + 自动续跑至出结果） ----
 if ! grep -q "irds()" ~/.bashrc 2>/dev/null; then
     cat >> ~/.bashrc << 'BASHRC_EOF'
 
-# ASNIPtest: 一键后台扫描，断线自动续跑
+# ASNIPtest: 一键后台扫描，断线自动续跑，直到 report.csv 生成
 irds() {
     local args="$*"
+    # 如果上次有残留 screen/tmux session 就复用提示
+    if command -v screen >/dev/null 2>&1 && screen -list 2>/dev/null | grep -q '(asnip)'; then
+        echo "  检测到已有 asnip screen session，先用 screen -r asnip 查看"
+        return 0
+    fi
+    if command -v tmux >/dev/null 2>&1 && tmux has-session -t asnip 2>/dev/null; then
+        echo "  检测到已有 asnip tmux session，先用 tmux attach -t asnip 查看"
+        return 0
+    fi
+    local runner
     if command -v screen >/dev/null 2>&1; then
-        screen -dmS asnip bash -c "source ~/.bashrc; while true; do ips $args; code=\$?; if [ \$code -eq 0 ]; then break; fi; echo '已中断，10秒后自动续跑...'; sleep 10; done; echo '任务完成，按回车退出'; read"
+        runner="screen"
     elif command -v tmux >/dev/null 2>&1; then
-        tmux new-session -d -s asnip "source ~/.bashrc; while true; do ips $args; code=\$?; if [ \$code -eq 0 ]; then break; fi; echo '已中断，10秒后自动续跑...'; sleep 10; done; echo '任务完成，按回车退出'; read"
+        runner="tmux"
     else
         echo "  未检测到 screen/tmux，直接前台运行"
         ips $args
+        return
     fi
+    # 在 screen/tmux 内部跑循环，并 ignore SIGHUP，防止 SSH 断连杀进程
+    local inner_cmd
+    inner_cmd="trap '' HUP; while true; do ips $args; code=\$?; if [ \$code -eq 0 ]; then if [ -f \"${HOME}/.asnip/src/scan_data/report.csv\" ]; then echo \"报告文件已生成: ${HOME}/.asnip/src/scan_data/report.csv\"; break; fi; fi; echo \"上次执行结束(exit=\$code)且未见 report.csv，10秒后自动续跑...\"; sleep 10; done"
+    if [ "$runner" = "screen" ]; then
+        screen -dmS asnip bash -c "$inner_cmd"
+    else
+        tmux new-session -d -s asnip bash -c "$inner_cmd"
+    fi
+    disown
+    echo "  已在后台启动($runner session: asnip)"
+    echo "  查看: $runner -r asnip  或  tail -f /tmp/irds_asnip.log"
+    echo "  结果: irds-result"
 }
 BASHRC_EOF
     echo -e " ${GREEN}✅ 已注册 irds 函数到 ~/.bashrc${NC}"
