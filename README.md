@@ -46,6 +46,8 @@ curl -fsSL https://raw.githubusercontent.com/take2be/ASNIPtest/master/uninstall.
 
 ```bash
 asnip scan
+# 或快捷命令
+ips
 ```
 
 流程：
@@ -59,6 +61,8 @@ asnip scan
 
 ```bash
 asnip scan 400618
+# 或
+ips 400618
 ```
 
 ### 指定端口
@@ -101,7 +105,12 @@ tail -f ~/asnip.log
 screen -r asnip
 ```
 
-## 输出
+`ips` 命令同样可用，例如：
+```bash
+screen -dmS asnip bash -c 'ips 400618 > ~/asnip.log 2>&1'
+```
+
+退出 screen 用 `Ctrl+A D`。
 
 扫描完成后自动生成：
 
