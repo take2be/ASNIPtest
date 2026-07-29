@@ -221,13 +221,22 @@ mkdir -p "${INSTALL_DIR}/bin"
 cat > "${INSTALL_DIR}/bin/asnip" << SCRIPT
 #!/usr/bin/env bash
 DIR="${INSTALL_DIR}/src"
-cd "\$DIR"
-exec python3 asnip.py "\$@"
+cd "$DIR"
+exec python3 asnip.py "$@"
 SCRIPT
 chmod +x "${INSTALL_DIR}/bin/asnip"
 
+# ---- 创建 ips 快捷命令 ----
+cat > "${INSTALL_DIR}/bin/ips" << SCRIPT
+#!/usr/bin/env bash
+DIR="${INSTALL_DIR}/src"
+cd "$DIR"
+exec python3 asnip.py scan "$@"
+SCRIPT
+chmod +x "${INSTALL_DIR}/bin/ips"
+
 # 清理可能残留的旧 broken symlink
-rm -f /usr/local/bin/asnip 2>/dev/null || true
+rm -f /usr/local/bin/asnip /usr/local/bin/ips 2>/dev/null || true
 
 # 当前交互 shell 立刻生效
 export PATH="${INSTALL_DIR}/bin:$PATH"
