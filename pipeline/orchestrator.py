@@ -221,6 +221,7 @@ class Orchestrator:
         print()
 
         # 解析 verify 结果（CSV 格式：ip,port,colo,cfray,status,conf）
+        verify_result = {}
         verified_ips = []
         colo_map = {}
         for item in all_ips:
@@ -237,6 +238,8 @@ class Orchestrator:
                     verified_ips.append(ip_port)
                     if colo:
                         colo_map[ip_port] = colo
+                    verify_result[ip_port] = {"status": parts[3].strip() if len(parts) > 3 else "-",
+                                               "conf": parts[4].strip() if len(parts) > 4 else "-"}
 
         print(f"\n  → 共 {len(verified_ips)} 个已验证 IP ({format_duration(time.time()-t1)})")
         print()
@@ -335,6 +338,7 @@ class Orchestrator:
                 ip_type = "CF官方"
             else:
                 ip_type = classify_ip_type(org, asn)
+            vr = verify_result.get(ip_port, {})
             merged.append({
                 "ip_port": ip_port,
                 "asn": row["asn"],
@@ -350,8 +354,10 @@ class Orchestrator:
                 "download_mbps": sp.get("download_mbps", 0),
                 "tls": sp.get("tls", "-") if sp.get("tls") else "-",
                 "alpn": sp.get("alpn", "-") if sp.get("alpn") else "-",
-                "verify_reason": "-",
-                "confidence": "-",
+                "verify_status": vr.get("status", "-"),
+                "verify_conf": vr.get("conf", "-"),
+                "verify_reason": row.get("verify_reason", "-"),
+                "confidence": row.get("confidence", "-"),
             })
 
         from asnip import _get_public_ip

@@ -97,8 +97,16 @@ def generate_report(ip_data: list[dict], output_dir: str = ".",
             lat = row.get("latency_ms", "-")
             dl = row.get("download_mbps", 0)
             speed_str = f"{lat}ms" if lat and lat != "-" else "-"
-            if dl and dl != 0:
-                speed_str += f" / {dl}MB"
+            # 访问协议：优先按实际字段推断
+            is_cf_row = row.get("verify_conf") in ("high", "low")
+            if row.get("tls", "-") not in ("-", "", "false", "False"):
+                proto = row["tls"].lower()
+            elif row.get("alpn", "-") not in ("-", ""):
+                proto = "https"
+            elif is_cf_row or row.get("verify_status") in ("200", "301", "403"):
+                proto = "https"
+            else:
+                proto = "plaintext"
 
             writer.writerow([
                 ip,
@@ -117,7 +125,7 @@ def generate_report(ip_data: list[dict], output_dir: str = ".",
                 row.get("ip_type", "未知"),
                 row.get("asn", "-"),
                 row.get("org", "-"),
-                _access_protocol(row.get("tls", "-"), row.get("alpn", "-"), cf_confirmed=is_cf_row),
+                proto,
                 speed_str,
             ])
 
@@ -130,13 +138,19 @@ def generate_report(ip_data: list[dict], output_dir: str = ".",
             ip_port_str = row.get("ip_port", "")
             ip_only = ip_port_str.rsplit(":", 1)[0] if ":" in ip_port_str else ip_port_str
             ip_version = "IPv6" if ":" in ip_only else "IPv4"
-            is_cf = row.get("conf") in ("high", "low") or row.get("status") in ("200", "301", "403")
-            proto = _access_protocol(
-                row.get("tls", "-"), row.get("alpn", "-"), cf_confirmed=is_cf)
+            is_cf = row.get("verify_conf") in ("high", "low")
+            if row.get("tls", "-") not in ("-", "", "false", "False"):
+                proto = row["tls"].lower()
+            elif row.get("alpn", "-") not in ("-", ""):
+                proto = "https"
+            elif is_cf or row.get("verify_status") in ("200", "301", "403"):
+                proto = "https"
+            else:
+                proto = "plaintext"
             json_rows.append({
                 "ip": ip,
                 "port": port,
-                "tls": row.get("tls", "-"),
+                "tls": "true" if is_cf else row.get("tls", "-"),
                 "colo": row.get("colo", "-"),
                 "country": row.get("country", "-"),
                 "country_code": cc,
