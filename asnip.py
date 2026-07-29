@@ -200,6 +200,9 @@ def cmd_scan(args):
                 break
             print("\n  报告未生成，10 秒后自动续跑...")
             time.sleep(10)
+        # daemon 模式下也要启动 HTTP 下载服务，之前这里直接 return 导致
+        # irds 跑完从来没有下载链接
+        _serve_results(port=args.port)
         return
 
     app.run(

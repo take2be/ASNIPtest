@@ -265,7 +265,7 @@ if [ -z "$runner" ]; then
     exec "${HOME}/.asnip/bin/ips" $args --daemon
 fi
 # daemon 循环：直到 report.csv 生成
-inner_cmd="trap '' HUP; while true; do \"${HOME}/.asnip/bin/ips\" $args --daemon; code=\$?; if [ \$code -eq 0 ] && [ -f \"${HOME}/.asnip/src/scan_data/report.csv\" ]; then echo \"report.csv ready\"; break; fi; echo \"retry (exit=\$code) in 10s...\"; sleep 10; done"
+inner_cmd="trap '' HUP; while true; do \"${HOME}/.asnip/bin/ips\" $args --daemon; code=\$?; if [ \$code -eq 0 ] && [ -f \"${HOME}/.asnip/src/report.csv\" ]; then echo \"report.csv ready\"; break; fi; echo \"retry (exit=\$code) in 10s...\"; sleep 10; done"
 if [ "$runner" = "screen" ]; then
     screen -dmS asnip bash -c "$inner_cmd"
     sleep 0.5
@@ -280,8 +280,8 @@ chmod +x "$BIN_DIR/irds"
 cat > "$BIN_DIR/irds-result" << 'SCRIPT'
 #!/usr/bin/env bash
 rpt=""
-if [ -d "${HOME}/.asnip/src/scan_data" ]; then
-    rpt=$(find "${HOME}/.asnip/src/scan_data" -maxdepth 1 -name "report.csv" -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -1 | cut -d' ' -f2-)
+if [ -d "${HOME}/.asnip/src" ]; then
+    rpt=$(find "${HOME}/.asnip/src" -maxdepth 1 -name "report.csv" -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -1 | cut -d' ' -f2-)
 fi
 if [ -z "$rpt" ] || [ ! -f "$rpt" ]; then
     echo "尚未找到 report.csv"
