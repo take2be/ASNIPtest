@@ -241,6 +241,48 @@ rm -f /usr/local/bin/asnip /usr/local/bin/ips 2>/dev/null || true
 # 当前交互 shell 立刻生效
 export PATH="${INSTALL_DIR}/bin:$PATH"
 
+# ---- 注册 irds 快捷函数（防 SSH 断线 + 自动续跑） ----
+if ! grep -q "irds()" ~/.bashrc 2>/dev/null; then
+    cat >> ~/.bashrc << 'BASHRC_EOF'
+
+# ASNIPtest: 一键后台扫描，断线自动续跑
+irds() {
+    local args="$*"
+    if command -v screen >/dev/null 2>&1; then
+        screen -dmS asnip bash -c "source ~/.bashrc; while true; do ips $args; code=\$?; if [ \$code -eq 0 ]; then break; fi; echo '已中断，10秒后自动续跑...'; sleep 10; done; echo '任务完成，按回车退出'; read"
+    elif command -v tmux >/dev/null 2>&1; then
+        tmux new-session -d -s asnip "source ~/.bashrc; while true; do ips $args; code=\$?; if [ \$code -eq 0 ]; then break; fi; echo '已中断，10秒后自动续跑...'; sleep 10; done; echo '任务完成，按回车退出'; read"
+    else
+        echo "  未检测到 screen/tmux，直接前台运行"
+        ips $args
+    fi
+}
+BASHRC_EOF
+    echo -e " ${GREEN}✅ 已注册 irds 函数到 ~/.bashrc${NC}"
+fi
+
+# ---- 注册 irds-result 函数（查看结果文件） ----
+if ! grep -q "irds-result" ~/.bashrc 2>/dev/null; then
+    cat >> ~/.bashrc << 'BASHRC_EOF2'
+
+# ASNIPtest: 查看最近一次扫描结果
+irds-result() {
+    local rpt=""
+    if [ -d "${HOME}/.asnip/src/scan_data" ]; then
+        rpt=$(find "${HOME}/.asnip/src/scan_data" -maxdepth 1 -name "report.csv" -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -1 | cut -d' ' -f2-)
+    fi
+    if [ -z "$rpt" ] || [ ! -f "$rpt" ]; then
+        echo "  尚未找到 report.csv"
+        return 1
+    fi
+    echo "  报告: $rpt"
+    wc -l "$rpt" 2>/dev/null || true
+    tail -n +1 "$rpt" 2>/dev/null | paste - - - | head -20 || cat "$rpt"
+}
+BASHRC_EOF2
+    echo -e " ${GREEN}✅ 已注册 irds-result 函数到 ~/.bashrc${NC}"
+fi
+
 # ---- 完成 ----
 echo -e "${GREEN}${BOLD}========================================${NC}"
 echo -e "${GREEN}${BOLD}  🎉 安装完成！${NC}"
