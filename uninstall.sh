@@ -36,9 +36,11 @@ done
 
 # 清理残留的 screen/tmux session
 if command -v screen >/dev/null 2>&1; then
-    screen -ls 2>/dev/null | grep -oE '[0-9]+\.asnip' | while read s; do
-        screen -X -S "$s" quit 2>/dev/null || true
-    done
+    if screen -ls 2>/dev/null | grep -qE '[0-9]+\.asnip'; then
+        screen -ls 2>/dev/null | grep -oE '[0-9]+\.asnip' | while read -r s; do
+            screen -X -S "$s" quit 2>/dev/null || true
+        done
+    fi
 fi
 if command -v tmux >/dev/null 2>&1; then
     tmux has-session -t asnip 2>/dev/null && tmux kill-session -t asnip 2>/dev/null || true
