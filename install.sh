@@ -193,6 +193,17 @@ fi
 $SUDO setcap cap_net_raw+ep "$(command -v masscan)" 2>/dev/null || true
 echo -e "  ${GREEN}✅ masscan: $(masscan --version 2>&1 | head -1)${NC}"
 
+# screen（irds 的后台会话 + detach/续接依赖它，之前脚本从没装过）
+if ! command -v screen &>/dev/null; then
+    echo -e "  ${YELLOW}⚠ screen 未安装，自动安装...${NC}"
+    $SUDO apt install -y -qq screen
+fi
+if command -v screen &>/dev/null; then
+    echo -e "  ${GREEN}✅ screen: $(screen --version 2>&1 | head -1)${NC}"
+else
+    echo -e "  ${YELLOW}⚠ screen 安装失败，irds 将退化为前台直跑（无法 detach/续接）${NC}"
+fi
+
 # cf-scanner
 CF_SCANNER="${INSTALL_DIR}/src/cf-scanner"
 if [ -f "$CF_SCANNER" ]; then
@@ -245,11 +256,38 @@ mkdir -p "$BIN_DIR"
 
 cat > "$BIN_DIR/irds" << 'SCRIPT'
 #!/usr/bin/env bash
-set -e
 self="$(readlink -f "$0" 2>/dev/null || realpath "$0" 2>/dev/null || echo "$0")"
 DIR="$(cd "$(dirname "$self")/../src" && pwd)"
-cd "$DIR"
-exec python3 asnip.py scan "$@"
+SESSION="asnip"
+
+# 已经身处 screen 会话内（比如用户手动 screen -r 进来的），直接跑，不要嵌套 screen
+if [ -n "$STY" ]; then
+    cd "$DIR"
+    exec python3 asnip.py scan "$@"
+fi
+
+# 没装 screen 就退化为前台直跑，至少功能可用，只是不能 detach/续接
+if ! command -v screen &>/dev/null; then
+    echo "⚠ 未检测到 screen，直接前台运行（无法 detach/续接，建议先安装 screen）"
+    cd "$DIR"
+    exec python3 asnip.py scan "$@"
+fi
+
+# 已有同名会话在跑（比如上次 detach 了）→ 直接接回去，不要重新起一遍任务
+if screen -ls 2>/dev/null | grep -qE "\.${SESSION}[[:space:]]"; then
+    echo "↪ 检测到已有 ${SESSION} 会话，正在接入进度界面..."
+    exec screen -r "$SESSION"
+fi
+
+# 否则新建一个后台 detached 会话去真正跑任务，再 attach 进去
+ARGS=""
+for a in "$@"; do
+    ARGS="$ARGS $(printf '%q' "$a")"
+done
+echo "🚀 后台启动 ${SESSION} 会话..."
+screen -dmS "$SESSION" bash -c "cd '$DIR' && python3 asnip.py scan $ARGS; echo; echo '[任务已结束，按回车关闭窗口]'; read"
+sleep 1
+exec screen -r "$SESSION"
 SCRIPT
 chmod +x "$BIN_DIR/irds"
 

@@ -391,11 +391,18 @@ def _extract_targets_from_masscan(json_file: str, targets_file: str):
         if not content or content == "[]":
             pass
         else:
-            # masscan -oJ 追加写入，文件可能包含旧 []，取最后一个 [ 开始解析
-            start = content.rfind("[")
-            if start >= 0:
-                content = content[start:]
-            data = _json.loads(content)
+            try:
+                # 正常情况下文件本身就是一段完整合法的 JSON 数组，直接解析
+                data = _json.loads(content)
+            except _json.JSONDecodeError:
+                # 兜底：文件可能残留旧数据/被截断，尝试截取最外层数组的起止位置。
+                # 注意：不能用 rfind("[") 找起点——每条记录自带嵌套的
+                # "ports": [...] 数组，rfind 会命中最后一条记录内部的端口数组，
+                # 而不是最外层数组的开头，导致真实命中被整体丢弃解析成空列表
+                # （之前"masscan 明明有命中，verify 却说无开放端口"就是这个 bug）。
+                start = content.find("[")
+                end = content.rfind("]")
+                data = _json.loads(content[start:end + 1]) if start >= 0 and end > start else []
             for entry in data:
                 ip = entry.get("ip")
                 if not ip:
