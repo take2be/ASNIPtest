@@ -160,9 +160,6 @@ def run_masscan(block_index: int, cidrs_file: str, ports: str,
     targets_tmp = os.path.join(workdir, f"block_{block_index:03d}_targets.txt.tmp")
     targets_file = os.path.join(workdir, f"block_{block_index:03d}_targets.txt")
 
-    # 预先建立合法空 JSON
-    with open(out_tmp, "w") as f:
-        f.write("[]\n")
 
     cmd = [
         "masscan",
@@ -170,8 +167,8 @@ def run_masscan(block_index: int, cidrs_file: str, ports: str,
         "-p", ports,
         "--rate", str(rate),
         "-oJ", out_tmp,
-        "--wait", "15",
-        "--max-retries", "3",
+        "--wait", "5",
+        "--max-retries", "1",
     ]
 
     print(f"  🚀 Block {block_index}: masscan {ports} rate={rate}")
@@ -231,7 +228,7 @@ def run_masscan(block_index: int, cidrs_file: str, ports: str,
         return False, actual_kpps
 
     # 检查输出文件
-    if not os.path.exists(out_tmp) or os.path.getsize(out_tmp) < 10:
+    if not os.path.exists(out_tmp) or os.path.getsize(out_tmp) == 0:
         print(f"  ℹ Block {block_index}: 无开放端口 (空结果)")
         # 写空文件防 Resume 死循环
         with open(out_tmp, "w") as f:
@@ -394,6 +391,10 @@ def _extract_targets_from_masscan(json_file: str, targets_file: str):
         if not content or content == "[]":
             pass
         else:
+            # masscan -oJ 追加写入，文件可能包含旧 []，取最后一个 [ 开始解析
+            start = content.rfind("[")
+            if start >= 0:
+                content = content[start:]
             data = _json.loads(content)
             for entry in data:
                 ip = entry.get("ip")
