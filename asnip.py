@@ -197,6 +197,16 @@ def cmd_scan(args):
             if os.path.exists(report_csv) and os.path.getsize(report_csv) > 100:
                 print("\n  ✅ report.csv 已生成，守护进程退出")
                 break
+            # 兼容新文件名 AS36002_443_时间戳.csv
+            newest = None
+            for fn in os.listdir(PROJECT_DIR):
+                if fn.startswith(f"AS{asns[0]}_{ports.replace(',', '_')}_") and fn.endswith(".csv"):
+                    fp = os.path.join(PROJECT_DIR, fn)
+                    if newest is None or os.path.getmtime(fp) > os.path.getmtime(newest):
+                        newest = fp
+            if newest and os.path.getsize(newest) > 100:
+                print(f"\n  ✅ {os.path.basename(newest)} 已生成，守护进程退出")
+                break
             print("\n  报告未生成，10 秒后自动续跑...")
             time.sleep(10)
         # daemon 模式下也要启动 HTTP 下载服务，去掉 return 让 _serve_results 阻塞主线程
