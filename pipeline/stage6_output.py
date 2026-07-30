@@ -122,14 +122,9 @@ def generate_report(ip_data: list[dict], output_dir: str = ".",
                     row["colo"] = m.group(1)
 
             org_val = row.get("org", "-") or "-"
-'
-            '            # 去掉 ASN 前缀，避免跟 ASN 列重复
-'
-            '            import re as _re2
-'
-            '            org_val = _re2.sub(r"^\s*AS\d+\s+", "", str(org_val)).strip()
-'
-            '            writer.writerow([
+            import re as _re2
+            org_val = _re2.sub(r"^\s*AS\d+\s+", "", str(org_val)).strip()
+            writer.writerow([
                 ip,
                 port,
                 "true" if is_cf_row else row.get("tls", "-"),
