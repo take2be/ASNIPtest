@@ -249,7 +249,7 @@ set -e
 self="$(readlink -f "$0" 2>/dev/null || realpath "$0" 2>/dev/null || echo "$0")"
 DIR="$(cd "$(dirname "$self")/../src" && pwd)"
 cd "$DIR"
-exec python3 asnip.py "$@"
+exec python3 asnip.py scan "$@"
 SCRIPT
 chmod +x "$BIN_DIR/irds"
 
