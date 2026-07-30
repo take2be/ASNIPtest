@@ -94,16 +94,31 @@ def _batch_lookup(ips: list[str], proxies: dict | None = None,
         result[ip] = info
         _write_cache(ip, info)
 
-    # 仍未查到 或 缺 org 的用 ip-api 补
-    still_missing = [
+    # cymru 只有 asn/org/country，缺 country_code/region_name/city。
+    # 对 cymru 已命中的 IP，仍走 ip-api 补全缺失字段。
+    needs_detail = [
         ip for ip in uncached
-        if ip not in result or result[ip].get("org", "-") == "-"
+        if ip in result and any(result[ip].get(k) in (None, "-")
+               for k in ("country_code", "region_name", "city"))
     ]
-    if still_missing:
-        ipapi_hits = _query_ipapi_batch(still_missing, proxies=proxies)
+    if needs_detail:
+        ipapi_hits = _query_ipapi_batch(needs_detail, proxies=proxies)
         for ip, info in ipapi_hits.items():
+            merged = dict(result.get(ip, {}))
+            merged.update({k: v for k, v in info.items()
+                           if v not in (None, "-") and merged.get(k) in (None, "-")})
+            result[ip] = merged
+            _write_cache(ip, merged)
+
+    # 仍未查到的标 -
+    for ip in uncached:
+        if ip not in result:
+            info = {
+                "asn": "-", "country": "-", "country_code": "-",
+                "region_name": "-", "city": "-", "org": "-",
+                "source": "-", "cached_at": "-",
+            }
             result[ip] = info
-            _write_cache(ip, info)
 
     # 仍未查到的标 -（新字段也加）
     for ip in uncached:

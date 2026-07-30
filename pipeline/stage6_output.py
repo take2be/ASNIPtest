@@ -96,7 +96,12 @@ def generate_report(ip_data: list[dict], output_dir: str = ".",
             is_cf_row = row.get("conf") in ("high", "low") or row.get("status") in ("200", "301", "403")
             lat = row.get("latency_ms", "-")
             dl = row.get("download_mbps", 0)
-            speed_str = f"{lat}ms" if lat and lat != "-" else "-"
+            if dl and dl > 0:
+                speed_str = f"{dl} Mbps"
+            elif lat and lat != "-":
+                speed_str = f"{lat}ms"
+            else:
+                speed_str = "-"
             # 访问协议：优先按实际字段推断
             is_cf_row = row.get("verify_conf") in ("high", "low")
             if row.get("tls", "-") not in ("-", "", "false", "False"):
