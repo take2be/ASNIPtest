@@ -170,8 +170,8 @@ def run_masscan(block_index: int, cidrs_file: str, ports: str,
         "-p", ports,
         "--rate", str(rate),
         "-oJ", out_tmp,
-        "--wait", "5",
-        "--max-retries", "1",
+        "--wait", "15",
+        "--max-retries", "3",
     ]
 
     print(f"  🚀 Block {block_index}: masscan {ports} rate={rate}")
