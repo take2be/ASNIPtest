@@ -238,8 +238,8 @@ class Orchestrator:
                     verified_ips.append(ip_port)
                     if colo:
                         colo_map[ip_port] = colo
-                    verify_result[ip_port] = {"status": parts[3].strip() if len(parts) > 3 else "-",
-                                               "conf": parts[4].strip() if len(parts) > 4 else "-"}
+                    verify_result[ip_port] = {"status": parts[4].strip() if len(parts) > 4 else "-",
+                                               "conf": parts[5].strip() if len(parts) > 5 else "-"}
 
         print(f"\n  → 共 {len(verified_ips)} 个已验证 IP ({format_duration(time.time()-t1)})")
         print()
