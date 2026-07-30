@@ -138,7 +138,10 @@ def cmd_scan(args):
     # ---- 端口输入 ----
     ports = args.ports
     if not ports:
-        ports = DEFAULT_PORTS
+        if args.daemon or not sys.stdin.isatty():
+            ports = DEFAULT_PORTS
+        else:
+            ports = input(f"  输入端口（默认 {DEFAULT_PORTS}）: ").strip() or DEFAULT_PORTS
     print(f"  → 端口: {ports}")
     print()
 
