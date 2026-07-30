@@ -113,7 +113,23 @@ def generate_report(ip_data: list[dict], output_dir: str = ".",
             else:
                 proto = "plaintext"
 
-            writer.writerow([
+            # colo fallback：若 cf-scanner 为空，尝试从 CF-Ray 解析
+            if row.get("colo", "-") in ("-", "") and row.get("verify_reason", ""):
+                import re as _re
+                m = _re.search(r"-([A-Z]{3})-", row.get("verify_reason", ""))
+                if m:
+                    row = dict(row)
+                    row["colo"] = m.group(1)
+
+            org_val = row.get("org", "-") or "-"
+'
+            '            # 去掉 ASN 前缀，避免跟 ASN 列重复
+'
+            '            import re as _re2
+'
+            '            org_val = _re2.sub(r"^\s*AS\d+\s+", "", str(org_val)).strip()
+'
+            '            writer.writerow([
                 ip,
                 port,
                 "true" if is_cf_row else row.get("tls", "-"),
@@ -129,7 +145,7 @@ def generate_report(ip_data: list[dict], output_dir: str = ".",
                 ip_port_type,
                 row.get("ip_type", "未知"),
                 row.get("asn", "-"),
-                row.get("org", "-"),
+                org_val,
                 proto,
                 speed_str,
             ])
