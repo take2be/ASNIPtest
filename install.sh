@@ -246,8 +246,9 @@ mkdir -p "$BIN_DIR"
 cat > "$BIN_DIR/irds" << 'SCRIPT'
 #!/usr/bin/env bash
 set -e
-export PATH="$HOME/.asnip/bin:$PATH"
-cd ~/ASNIPtest
+self="$(readlink -f "$0" 2>/dev/null || realpath "$0" 2>/dev/null || echo "$0")"
+DIR="$(cd "$(dirname "$self")/../src" && pwd)"
+cd "$DIR"
 exec python3 asnip.py "$@"
 SCRIPT
 chmod +x "$BIN_DIR/irds"
