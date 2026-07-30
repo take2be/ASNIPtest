@@ -245,35 +245,10 @@ mkdir -p "$BIN_DIR"
 
 cat > "$BIN_DIR/irds" << 'SCRIPT'
 #!/usr/bin/env bash
-args="$*"
-# 先杀旧 asnip session，避免堵路
-if command -v screen >/dev/null 2>&1; then
-    screen -ls 2>/dev/null | grep -oE '[0-9]+\.asnip' | while read s; do
-        screen -X -S "$s" quit 2>/dev/null || true
-    done
-fi
-if command -v tmux >/dev/null 2>&1; then
-    tmux has-session -t asnip 2>/dev/null && tmux kill-session -t asnip 2>/dev/null || true
-fi
-runner=""
-if command -v screen >/dev/null 2>&1; then
-    runner=screen
-elif command -v tmux >/dev/null 2>&1; then
-    runner=tmux
-fi
-if [ -z "$runner" ]; then
-    exec "${HOME}/.asnip/bin/ips" $args --daemon
-fi
-# daemon 循环：直到 report.csv 生成
-inner_cmd="trap '' HUP; while true; do \"${HOME}/.asnip/bin/ips\" $args --daemon; code=\$?; if [ \$code -eq 0 ] && [ -f \"${HOME}/.asnip/src/report.csv\" ]; then echo \"report.csv ready\"; break; fi; echo \"retry (exit=\$code) in 10s...\"; sleep 10; done"
-if [ "$runner" = "screen" ]; then
-    screen -dmS asnip bash -c "$inner_cmd"
-    sleep 0.5
-    screen -r asnip
-else
-    tmux new-session -d -s asnip bash -c "$inner_cmd"
-    tmux attach -t asnip
-fi
+set -e
+export PATH="$HOME/.asnip/bin:$PATH"
+cd ~/ASNIPtest
+exec python3 asnip.py "$@"
 SCRIPT
 chmod +x "$BIN_DIR/irds"
 
