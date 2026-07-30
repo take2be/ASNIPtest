@@ -73,7 +73,7 @@ def generate_plan(asn: int, prefixes: list[str], ports: str = DEFAULT_PORTS,
     return plan
 
 
-def materialize_plan(plan: dict, workdir: str) -> str:
+def materialize_plan(plan: dict, workdir: str, prefixes: list[str] | None = None) -> str:
     """将 Plan 写到磁盘：先 scan_plan.json，再逐 block 写 cidrs 文件。
 
     返回 scan_plan.json 路径。
@@ -97,13 +97,18 @@ def materialize_plan(plan: dict, workdir: str) -> str:
     os.replace(tmp_path, plan_path)
 
     # 写各 block CIDR 文件
-    for blk in identity["blocks"]:
-        cidrs_file = os.path.join(workdir, blk["cidrs_file"])
-        start, end = blk["cidr_range"]["start_idx"], blk["cidr_range"]["end_idx"]
-        # 从原始 prefixes 重建（无法从 plan 重建，需调用方传递）
-        # 实际使用中由 Orchestrator 调用并传入 prefixes
-        # 这里只写空占位，内容由调用方填充
-        Path(cidrs_file).touch()
+    if prefixes:
+        for blk in identity["blocks"]:
+            cidrs_file = os.path.join(workdir, blk["cidrs_file"])
+            start, end = blk["cidr_range"]["start_idx"], blk["cidr_range"]["end_idx"]
+            chunk = prefixes[start:end]
+            with open(cidrs_file, "w") as f:
+                f.write("\n".join(chunk) + "\n")
+    else:
+        # 如果没有 prefixes，写空占位（Resume 场景从已有文件续跑）
+        for blk in identity["blocks"]:
+            cidrs_file = os.path.join(workdir, blk["cidrs_file"])
+            Path(cidrs_file).touch()
 
     return plan_path
 

@@ -69,14 +69,19 @@ def _cache_valid(cached_at: str, ttl_seconds: int = 86400) -> bool:
 def _batch_lookup(ips: list[str], proxies: dict | None = None,
                   on_progress=None) -> dict:
     """批量查 IP 归属。cymru -> ip-api 回退链。"""
+    # 统一去掉可能的 :port，只保留纯 IP
+    pure_ips = [ip.split(":")[0] if ":" in ip else ip for ip in ips]
+    # 同时建立 pure_ip -> original_ip 的映射，方便 caller 对齐结果
+    ip_map = {p: o for p, o in zip(pure_ips, ips)}
+
     result = {}
 
     # 先查缓存（24h TTL）
     uncached = []
-    for ip in ips:
+    for ip in pure_ips:
         info = _read_cache(ip)
         if info and info.get("asn") != "-" and _cache_valid(info.get("cached_at", "-")):
-            result[ip] = info
+            result[ip_map[ip]] = info
         else:
             uncached.append(ip)
 
