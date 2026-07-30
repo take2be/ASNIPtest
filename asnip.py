@@ -324,6 +324,24 @@ def _serve_results(port: int = 8080):
     results_dir = PROJECT_DIR
     os.chdir(results_dir)
 
+    # 把最新带时间戳的结果复制一份为 report.csv / report.json，方便 HTTP 直接访问
+    try:
+        import glob, shutil
+        newest_csv = None
+        for fp in glob.glob("AS*_*_*.csv"):
+            if newest_csv is None or os.path.getmtime(fp) > os.path.getmtime(newest_csv):
+                newest_csv = fp
+        if newest_csv and not os.path.exists("report.csv"):
+            shutil.copy2(newest_csv, "report.csv")
+        newest_json = None
+        for fp in glob.glob("AS*_*_*.json"):
+            if newest_json is None or os.path.getmtime(fp) > os.path.getmtime(newest_json):
+                newest_json = fp
+        if newest_json and not os.path.exists("report.json"):
+            shutil.copy2(newest_json, "report.json")
+    except Exception:
+        pass
+
     # 获取 LAN IP
     lan_ip = _get_lan_ip()
 
