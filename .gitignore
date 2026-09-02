@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# 安装时生成的版本标记（irds -version 读取）
+.version
+
+# 面板访问令牌（每台机器独立生成，绝不入库）
+access.token
+
+# Cache & scan data (auto-generated)
+cache/
+scan_data/
+
+# Reports
+report.csv
+report.json
+
+# Large generated data files
+proxy_ips_*.csv
+proxy_ips_*.txt
+proxy_verify_*.csv
+scanner.jsonl
+test_*.txt
+test_*.txt
+
+# MaxMind GeoLite2 本地库（体积大，由 install.sh 下载，不进 git）
+data/*.mmdb
+
+# OS
+.DS_Store
+Thumbs.db

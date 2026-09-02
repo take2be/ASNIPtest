@@ -1,0 +1,1116 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5">
+    <title>ASNIPtest · 梦幻星尘</title>
+    <link rel="preconnect" href="https://fonts.loli.net">
+    <link href="https://fonts.loli.net/css2?family=Quicksand:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        /* ===== 基础重置 ===== */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            font-family: 'Quicksand', sans-serif;
+            position: relative;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+        /* ===== 背景层 ===== */
+        .bg-layer {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            /* ★★★ 背景图：static/anime_bg.jpg（图片由用户提供）★★★ */
+            background-image: url('{{BG_URL}}');
+            background-size: cover;
+            background-position: center;
+            background-color: rgba(255, 230, 240, 0.25);
+            background-blend-mode: overlay;
+            background: linear-gradient(135deg, rgba(255,230,240,0.6), rgba(224,240,255,0.6)), url('{{BG_URL}}');
+            background-size: cover, cover;
+            background-position: center, center;
+        }
+        /* 云朵和光晕 */
+        .cloud {
+            position: fixed;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.4);
+            filter: blur(40px);
+            z-index: 1;
+            pointer-events: none;
+            animation: floatCloud 20s ease-in-out infinite alternate;
+        }
+        .cloud.c1 { width: 300px; height: 80px; top: 5%; left: -50px; }
+        .cloud.c2 { width: 400px; height: 100px; bottom: 10%; right: -80px; animation-duration: 25s; }
+        .cloud.c3 { width: 200px; height: 60px; top: 40%; left: 70%; animation-duration: 18s; }
+        @keyframes floatCloud {
+            0% { transform: translateX(-20px) scale(1); }
+            100% { transform: translateX(40px) scale(1.1); }
+        }
+        .glow {
+            position: fixed;
+            border-radius: 50%;
+            filter: blur(100px);
+            z-index: 1;
+            pointer-events: none;
+        }
+        .glow.g1 { width: 500px; height: 500px; top: -200px; right: -100px; background: rgba(255, 107, 157, 0.15); }
+        .glow.g2 { width: 400px; height: 400px; bottom: -150px; left: -100px; background: rgba(79, 172, 254, 0.12); }
+
+        /* ===== 雪花容器 ===== */
+        #snow-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 9999;
+            overflow: hidden;
+        }
+        .snowflake {
+            position: absolute;
+            top: -20px;
+            font-size: 18px;
+            opacity: 0.7;
+            text-shadow: 0 0 10px rgba(255,255,255,0.8);
+            animation: fall linear infinite;
+            will-change: transform;
+            color: #ffb3c6;
+        }
+        .snowflake.pink { color: #ffb3c6; text-shadow: 0 0 12px #ffb3c6; }
+        .snowflake.blue { color: #b3d9ff; text-shadow: 0 0 12px #b3d9ff; }
+        .snowflake.purple { color: #d9b3ff; text-shadow: 0 0 12px #d9b3ff; }
+        @keyframes fall {
+            0% { transform: translateY(0) rotate(0deg) translateX(0); opacity: 0.9; }
+            100% { transform: translateY(100vh) rotate(720deg) translateX(80px); opacity: 0.1; }
+        }
+
+        /* ===== 主容器 ===== */
+        .dashboard {
+            position: relative;
+            z-index: 2;
+            max-width: 1600px;
+            width: 100%;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        /* 超宽屏（>1600px）放大信息密度 */
+        @media (min-width: 1600px) {
+            .dashboard { gap: 24px; }
+            .header .brand h1 { font-size: 28px; }
+            .stat-item .num { font-size: 30px; }
+            .sys-item .s-value { font-size: 32px; }
+            .ring-svg { width: 170px; height: 170px; }
+            /* 圆环放大到 170px 时同步调整标签居中量：170/2 + 46/2 = 108 */
+            .ring-label { font-size: 46px; margin-top: -108px; }
+            .ring-sub { margin-top: 62px; }
+        }
+
+        /* ===== 卡片通用 ===== */
+        .card {
+            background: rgba(255, 255, 255, 0.4);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            border-radius: 28px;
+            padding: 20px 24px;
+            box-shadow: 0 8px 32px rgba(255, 107, 157, 0.08), 0 4px 16px rgba(79, 172, 254, 0.06);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 40px rgba(255, 107, 157, 0.15);
+        }
+
+        /* ===== 顶栏 ===== */
+        .header {
+            grid-column: 1 / -1;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px 20px;
+            padding: 16px 24px;
+            background: rgba(255, 255, 255, 0.5);
+            border-color: rgba(255, 107, 157, 0.2);
+        }
+        .header .brand {
+            display: flex;
+            align-items: baseline;
+            flex-wrap: wrap;
+        }
+        .header .brand h1 {
+            font-size: 24px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #ff6b9d, #c084fc, #4facfe);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: -0.5px;
+            text-shadow: 0 0 30px rgba(255,107,157,0.2);
+        }
+        /* ASN 标签：与主标题同款渐变。
+           容器 inline-flex + wrap，每个条目独立 nowrap，
+           保证放不下时整个 ASN / IP 段一起换行，绝不把 36002 拆成 360 / 02 */
+        .asn-tag {
+            display: none;
+            margin-left: 10px;
+            max-width: 100%;
+            flex-wrap: wrap;
+            align-items: baseline;
+            gap: 0 6px;
+            font-size: 20px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            line-height: 1.3;
+        }
+        .asn-tag.show { display: inline-flex; }
+        .asn-tag .asn-item {
+            white-space: nowrap;
+            background: linear-gradient(135deg, #ff6b9d, #c084fc, #4facfe);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-shadow: 0 0 30px rgba(255,107,157,0.2);
+        }
+        .header .status-tag {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #2d2d2d;
+            background: rgba(255, 255, 255, 0.5);
+            padding: 4px 18px 4px 14px;
+            border-radius: 40px;
+            border: 1px solid rgba(255, 107, 157, 0.15);
+        }
+        .status-tag .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #4facfe;
+            box-shadow: 0 0 16px #4facfe;
+            animation: pulse-dot 1.8s infinite;
+        }
+        .status-tag .dot.idle { background: #ccc; box-shadow: none; animation: none; }
+        .status-tag .dot.done { background: #ff6b9d; box-shadow: 0 0 20px #ff6b9d; }
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(0.7); }
+        }
+
+        /* ===== 进度圆环 ===== */
+        .ring-card {
+            grid-column: 1 / 2;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 16px 10px 20px;
+            min-height: 240px;
+        }
+        .ring-svg {
+            width: 150px;
+            height: 150px;
+            transform: rotate(-90deg);
+        }
+        .ring-svg .bg { fill: none; stroke: rgba(0,0,0,0.05); stroke-width: 8; }
+        .ring-svg .fg {
+            fill: none;
+            stroke: url(#pinkBlueGrad);
+            stroke-width: 8;
+            stroke-linecap: round;
+            transition: stroke-dashoffset 1s cubic-bezier(0.34, 1.56, 0.64, 1);
+            filter: drop-shadow(0 0 20px rgba(255, 107, 157, 0.4));
+        }
+        .ring-label {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 40px;
+            font-weight: 700;
+            line-height: 1;
+            /* 圆环 svg 150px，圆心在 75px；标签高 40px，
+               上移到 top=55px 即垂直居中于圆心，不再与圆环描边相交 */
+            margin-top: -95px;
+            background: linear-gradient(135deg, #ff6b9d, #c084fc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-shadow: 0 0 30px rgba(255,107,157,0.2);
+        }
+        .ring-sub {
+            font-size: 13px;
+            letter-spacing: 3px;
+            color: rgba(0,0,0,0.2);
+            /* 标签用负 margin 上移到圆心后，这里补回被占掉的高度，
+               让"扫描进度"回到圆环下方，整体不上移 */
+            margin-top: 57px;
+        }
+
+        /* ===== 快速指标 ===== */
+        .quick-stats {
+            grid-column: 2 / 3;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            align-content: center;
+        }
+        .stat-item {
+            background: rgba(255,255,255,0.4);
+            border-radius: 18px;
+            padding: 14px 8px;
+            text-align: center;
+            border: 1px solid rgba(255,255,255,0.3);
+            backdrop-filter: blur(4px);
+            transition: all 0.3s;
+        }
+        .stat-item:hover {
+            background: rgba(255,255,255,0.6);
+            transform: scale(1.02);
+        }
+        .stat-item .num {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 26px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #4facfe, #c084fc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-shadow: 0 0 20px rgba(79,172,254,0.2);
+            transition: all 0.15s;
+        }
+        .stat-item .num.pink { 
+            background: linear-gradient(135deg, #ff6b9d, #ff8aab);
+            -webkit-background-clip: text;
+            background-clip: text;
+            text-shadow: 0 0 20px rgba(255,107,157,0.2);
+        }
+        .stat-item .num.updated { animation: pop-num 0.4s ease; }
+        @keyframes pop-num {
+            0% { transform: scale(1); }
+            30% { transform: scale(1.4); opacity: 0.6; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .stat-item .label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: rgba(0,0,0,0.35);
+            font-weight: 600;
+            margin-top: 6px;
+        }
+        @media (max-width: 700px) {
+            .quick-stats { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media (max-width: 450px) {
+            .quick-stats { grid-template-columns: 1fr 1fr; }
+        }
+
+        /* ===== 系统状态 - 上下结构，每个指标独立卡片 ===== */
+        .sys-card {
+            grid-column: 1 / 2;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+            padding: 18px 20px;
+            align-content: center;
+        }
+        .sys-item {
+            background: rgba(255, 255, 255, 0.3);
+            backdrop-filter: blur(4px);
+            border-radius: 20px;
+            padding: 14px 12px 12px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: transform 0.2s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+        }
+        .sys-item:hover {
+            transform: translateY(-2px);
+            background: rgba(255, 255, 255, 0.45);
+        }
+        .sys-item .s-label {
+            font-size: 16px;
+            font-weight: 700;
+            color: rgba(0,0,0,0.45);
+            letter-spacing: 0.5px;
+        }
+        .sys-item .value-box {
+            border-radius: 60px;
+            padding: 8px 20px;
+            min-width: 80px;
+            /* 渐变边框：外层彩色渐变做描边，内层白色填充 */
+            border: 1px solid transparent;
+            background:
+                linear-gradient(rgba(255,255,255,0.85), rgba(255,255,255,0.85)) padding-box,
+                linear-gradient(135deg, rgba(255,107,157,0.5), rgba(192,132,252,0.5), rgba(79,172,254,0.5)) border-box;
+            box-shadow: 0 2px 12px rgba(255,107,157,0.08), 0 2px 8px rgba(79,172,254,0.06);
+        }
+        .sys-item .s-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 28px;
+            font-weight: 700;
+            color: #2d2d2d;
+            line-height: 1.2;
+            /* 彩色渐变文字：与快速指标板块同风格 */
+            background: linear-gradient(135deg, #ff6b9d, #ff8aab);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-shadow: 0 0 20px rgba(255,107,157,0.15);
+        }
+        .sys-item .s-value.blue {
+            background: linear-gradient(135deg, #4facfe, #c084fc);
+            -webkit-background-clip: text;
+            background-clip: text;
+            text-shadow: 0 0 20px rgba(79,172,254,0.15);
+        }
+        .sys-item .s-bar-bg {
+            width: 100%;
+            height: 4px;
+            background: rgba(0,0,0,0.06);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 4px;
+        }
+        .sys-item .s-bar-fill {
+            height: 100%;
+            border-radius: 4px;
+            width: 0%;
+            background: linear-gradient(90deg, #4facfe, #c084fc);
+            transition: width 0.6s ease;
+        }
+        .sys-item .s-bar-fill.pink { background: linear-gradient(90deg, #ff6b9d, #ff8aab); }
+
+        /* ===== 阶段列表 - 增加百分比 ===== */
+        .stages-card {
+            grid-column: 2 / 3;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            justify-content: center;
+            padding: 18px 20px;
+        }
+        .stage-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .stage-row .s-badge {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            font-weight: 700;
+            width: 32px;
+            color: rgba(0,0,0,0.2);
+            text-align: right;
+            flex-shrink: 0;
+        }
+        .stage-row .s-name {
+            font-size: 14px;
+            font-weight: 600;
+            width: 85px;
+            flex-shrink: 0;
+            color: rgba(0,0,0,0.5);
+            transition: color 0.3s;
+        }
+        .stage-row .s-track {
+            flex: 1;
+            height: 6px;
+            background: rgba(0,0,0,0.06);
+            border-radius: 6px;
+            overflow: hidden;
+            position: relative;
+        }
+        .stage-row .s-track .s-bar {
+            height: 100%;
+            border-radius: 6px;
+            width: 0%;
+            background: linear-gradient(90deg, #4facfe, #c084fc);
+            transition: width 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .stage-row .s-track .s-bar.active {
+            background: linear-gradient(90deg, #ff6b9d, #c084fc, #4facfe);
+            background-size: 200% 100%;
+            animation: slide-rainbow 1.4s linear infinite;
+        }
+        @keyframes slide-rainbow {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+        .stage-row .s-percent {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            font-weight: 600;
+            width: 40px;
+            text-align: right;
+            color: rgba(0,0,0,0.3);
+            flex-shrink: 0;
+            transition: color 0.3s;
+        }
+        .stage-row .s-icon {
+            font-size: 18px;
+            width: 26px;
+            text-align: center;
+            color: rgba(0,0,0,0.1);
+            transition: all 0.4s;
+            flex-shrink: 0;
+        }
+        .stage-row .s-icon.active { color: #4facfe; text-shadow: 0 0 20px #4facfe; animation: bounce-icon 2s infinite; }
+        .stage-row .s-icon.done { color: #ff6b9d; text-shadow: 0 0 16px #ff6b9d; }
+        @keyframes bounce-icon {
+            0%, 100% { transform: translateY(0) scale(1); }
+            50% { transform: translateY(-4px) scale(1.1); }
+        }
+        .stage-row.done .s-name { color: rgba(0,0,0,0.7); }
+        .stage-row.done .s-percent { color: rgba(0,0,0,0.5); }
+
+        /* ===== 笑话卡片 ===== */
+        .joke-card {
+            grid-column: 1 / -1;
+            padding: 16px 24px;
+            text-align: center;
+            font-size: 20px;
+            font-weight: 700;
+            color: #4a2a4a;
+            background: rgba(255, 255, 255, 0.45);
+            backdrop-filter: blur(4px);
+            border-radius: 28px;
+            border: 1px solid rgba(255, 107, 157, 0.15);
+            min-height: 75px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 0.5s ease;
+            font-family: 'Quicksand', sans-serif;
+            box-shadow: 0 4px 20px rgba(255, 107, 157, 0.08);
+            text-shadow: 0 0 20px rgba(255,107,157,0.1);
+        }
+        .joke-card .joke-text {
+            animation: fadeInJoke 0.6s ease;
+        }
+        @keyframes fadeInJoke {
+            0% { opacity: 0; transform: translateY(8px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ===== 日志 - 换行滚动 ===== */
+        .log-card {
+            grid-column: 1 / -1;
+            max-height: 150px;
+            overflow-y: auto;
+            padding: 14px 18px;
+            background: rgba(255, 255, 255, 0.3);
+            backdrop-filter: blur(4px);
+            border-radius: 20px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            line-height: 1.8;
+            color: rgba(0,0,0,0.5);
+            border-color: rgba(255,255,255,0.2);
+        }
+        .log-card::-webkit-scrollbar { width: 4px; }
+        .log-card::-webkit-scrollbar-track { background: transparent; }
+        .log-card::-webkit-scrollbar-thumb { background: #ff6b9d; border-radius: 4px; box-shadow: 0 0 12px #ff6b9d; }
+        .log-card .entry {
+            display: block;
+            padding: 2px 0;
+            border-bottom: 1px solid rgba(0,0,0,0.03);
+        }
+        .log-card .entry:last-child { border-bottom: none; }
+        .log-card .entry .time { color: rgba(0,0,0,0.15); margin-right: 16px; font-weight: 600; }
+        .log-card .entry .info { color: #4facfe; font-weight: 600; }
+        .log-card .entry .warn { color: #ff6b9d; font-weight: 600; }
+        .log-card .entry .err { color: #f87171; font-weight: 600; }
+        .log-card .entry .done { color: #c084fc; font-weight: 600; }
+
+        /* ===== 完成横幅 ===== */
+        .complete-banner {
+            grid-column: 1 / -1;
+            text-align: center;
+            padding: 16px;
+            border-radius: 60px;
+            background: rgba(255, 107, 157, 0.1);
+            border: 2px solid rgba(255, 107, 157, 0.2);
+            color: #ff6b9d;
+            font-weight: 700;
+            letter-spacing: 2px;
+            backdrop-filter: blur(4px);
+            display: none;
+            font-size: 18px;
+        }
+        .complete-banner a {
+            color: #4facfe;
+            text-decoration: none;
+            border-bottom: 2px solid rgba(79, 172, 254, 0.2);
+            margin: 0 12px;
+        }
+        .complete-banner a:hover { border-bottom-color: #4facfe; }
+
+        /* ===== 响应式 ===== */
+        @media (max-width: 900px) {
+            .dashboard { grid-template-columns: 1fr; gap: 16px; }
+            .ring-card, .quick-stats, .sys-card, .stages-card { grid-column: 1 / -1; }
+            .quick-stats { grid-template-columns: repeat(3, 1fr); }
+            .sys-card { grid-template-columns: 1fr 1fr; }
+            .stage-row .s-name { width: 70px; font-size: 13px; }
+            .stage-row .s-badge { width: 28px; font-size: 11px; }
+            .stage-row .s-percent { width: 34px; font-size: 11px; }
+        }
+        @media (max-width: 600px) {
+            .quick-stats { grid-template-columns: repeat(2, 1fr); }
+            .sys-card { grid-template-columns: 1fr 1fr; }
+        }
+        /* 平板 / 小屏笔记本：ASN 标签仍与标题同行，字号略降留出换行空间 */
+        @media (max-width: 900px) {
+            .asn-tag { font-size: 18px; }
+        }
+        @media (max-width: 500px) {
+            body { padding: 12px; }
+            .card { padding: 16px; }
+            .header { flex-direction: column; align-items: flex-start; gap: 8px; }
+            /* 手机窄屏：ASN 标签整块移到标题下方独占区域，多条目自动逐个换行 */
+            .header .brand { flex-direction: column; align-items: flex-start; gap: 2px; }
+            .asn-tag { margin-left: 0; font-size: 16px; gap: 0 5px; }
+            .ring-svg { width: 120px; height: 120px; }
+            /* 圆环缩到 120px 时同步调整居中量：120/2 + 32/2 = 76 */
+            .ring-label { font-size: 32px; margin-top: -76px; }
+            .ring-sub { margin-top: 46px; }
+            .stat-item .num { font-size: 20px; }
+            .sys-item .s-label { font-size: 14px; }
+            .sys-item .s-value { font-size: 24px; }
+            .sys-item .value-box { padding: 6px 14px; min-width: 60px; }
+            .stage-row .s-name { width: 60px; font-size: 12px; }
+            .stage-row .s-badge { width: 24px; font-size: 10px; }
+            .stage-row .s-percent { width: 30px; font-size: 10px; }
+            .log-card { font-size: 12px; max-height: 120px; }
+            .joke-card { font-size: 17px; padding: 12px 16px; min-height: 60px; }
+        }
+        @media (max-width: 400px) {
+            .quick-stats { grid-template-columns: 1fr 1fr; }
+            .sys-card { grid-template-columns: 1fr; }
+            .stage-row .s-badge { display: none; }
+            .stage-row .s-name { width: auto; min-width: 52px; white-space: normal; line-height: 1.2; font-size: 11px; }
+            .stage-row { gap: 6px; }
+            .stage-row .s-icon { width: 22px; font-size: 16px; }
+        }
+        /* 手机横屏 / 小平板中间态: 日志区压缩 */
+        @media (min-width: 601px) and (max-width: 900px) {
+            .log-card { max-height: 90px; }
+            .joke-card { font-size: 17px; min-height: 60px; }
+        }
+        /* 触屏优化: 移除 hover 悬停位移, 改为点击反馈 */
+        @media (hover: none) {
+            .card:hover { transform: none; box-shadow: 0 8px 32px rgba(255, 107, 157, 0.08), 0 4px 16px rgba(79, 172, 254, 0.06); }
+            .stat-item:hover { transform: none; background: rgba(255,255,255,0.4); }
+            .sys-item:hover { transform: none; background: rgba(255, 255, 255, 0.3); }
+            .stat-item:active { transform: scale(0.96); background: rgba(255,255,255,0.6); }
+            .sys-item:active { transform: scale(0.96); background: rgba(255, 255, 255, 0.5); }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-layer"></div>
+    <div class="cloud c1"></div>
+    <div class="cloud c2"></div>
+    <div class="cloud c3"></div>
+    <div class="glow g1"></div>
+    <div class="glow g2"></div>
+    <div id="snow-container"></div>
+
+    <div class="dashboard" id="app">
+        <!-- 顶栏 -->
+        <header class="card header">
+            <div class="brand"><h1>🌸 ASNIPtest</h1><span id="asnTag" class="asn-tag"></span></div>
+            <div class="status-tag">
+                <span class="dot idle" id="statusDot"></span>
+                <span id="statusText">待命</span>
+            </div>
+        </header>
+
+        <!-- 进度圆环 -->
+        <div class="card ring-card">
+            <svg class="ring-svg" viewBox="0 0 120 120">
+                <defs>
+                    <linearGradient id="pinkBlueGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stop-color="#ff6b9d"/>
+                        <stop offset="50%" stop-color="#c084fc"/>
+                        <stop offset="100%" stop-color="#4facfe"/>
+                    </linearGradient>
+                </defs>
+                <circle class="bg" cx="60" cy="60" r="50"/>
+                <circle class="fg" id="ringFg" cx="60" cy="60" r="50" stroke-dasharray="314.16" stroke-dashoffset="314.16"/>
+            </svg>
+            <div class="ring-label" id="ringLabel">0%</div>
+            <div class="ring-sub">扫描进度</div>
+        </div>
+
+        <!-- 快速指标 -->
+        <div class="quick-stats">
+            <div class="stat-item"><div class="num" id="qVerified">0</div><div class="label">已验证 IP</div></div>
+            <div class="stat-item"><div class="num pink" id="qRate">0/s</div><div class="label">扫描速率</div></div>
+            <div class="stat-item"><div class="num" id="qSendRate">0</div><div class="label">📤 发包速率</div></div>
+            <div class="stat-item"><div class="num" id="qElapsed">--</div><div class="label">已用时间</div></div>
+            <div class="stat-item"><div class="num pink" id="qRemain">--</div><div class="label">预计剩余</div></div>
+            <div class="stat-item"><div class="num pink" id="qRecvRate">0</div><div class="label">📥 收包速率</div></div>
+        </div>
+
+        <!-- 系统状态 -->
+        <div class="card sys-card" id="sysStats">
+            <div class="sys-item">
+                <span class="s-label">💻 CPU 负载</span>
+                <div class="value-box"><span class="s-value" id="cpuVal">0%</span></div>
+                <div class="s-bar-bg"><div class="s-bar-fill pink" id="cpuBar" style="width:0%"></div></div>
+            </div>
+            <div class="sys-item">
+                <span class="s-label">🧠 内存占用</span>
+                <div class="value-box"><span class="s-value blue" id="memVal">0%</span></div>
+                <div class="s-bar-bg"><div class="s-bar-fill" id="memBar" style="width:0%"></div></div>
+            </div>
+            <div class="sys-item">
+                <span class="s-label">🌐 网络延迟</span>
+                <div class="value-box"><span class="s-value blue" id="netVal">0ms</span></div>
+                <div class="s-bar-bg"><div class="s-bar-fill" id="netBar" style="width:0%"></div></div>
+            </div>
+            <div class="sys-item">
+                <span class="s-label">⚙️ 活跃线程</span>
+                <div class="value-box"><span class="s-value" id="threadVal">0</span></div>
+                <div class="s-bar-bg"><div class="s-bar-fill pink" id="threadBar" style="width:0%"></div></div>
+            </div>
+        </div>
+
+        <!-- 阶段列表 -->
+        <div class="card stages-card" id="stagesList">
+            <div class="stage-row"><span class="s-badge">S1</span><span class="s-name">CIDR 展开</span><div class="s-track"><div class="s-bar" id="st1"></div></div><span class="s-percent" id="pct1">0%</span><span class="s-icon" id="ic1">🌸</span></div>
+            <div class="stage-row"><span class="s-badge">S2</span><span class="s-name">Masscan</span><div class="s-track"><div class="s-bar" id="st2"></div></div><span class="s-percent" id="pct2">0%</span><span class="s-icon" id="ic2">🌸</span></div>
+            <div class="stage-row"><span class="s-badge">S3</span><span class="s-name">验证</span><div class="s-track"><div class="s-bar" id="st3"></div></div><span class="s-percent" id="pct3">0%</span><span class="s-icon" id="ic3">🌸</span></div>
+            <div class="stage-row"><span class="s-badge">S4</span><span class="s-name">元数据增强</span><div class="s-track"><div class="s-bar" id="st4"></div></div><span class="s-percent" id="pct4">0%</span><span class="s-icon" id="ic4">🌸</span></div>
+            <div class="stage-row"><span class="s-badge">S5</span><span class="s-name">测速</span><div class="s-track"><div class="s-bar" id="st5"></div></div><span class="s-percent" id="pct5">0%</span><span class="s-icon" id="ic5">🌸</span></div>
+            <div class="stage-row"><span class="s-badge">S6</span><span class="s-name">报告生成</span><div class="s-track"><div class="s-bar" id="st6"></div></div><span class="s-percent" id="pct6">0%</span><span class="s-icon" id="ic6">🌸</span></div>
+        </div>
+
+        <!-- 笑话卡片 -->
+        <div class="joke-card" id="jokeCard">
+            <span class="joke-text" id="jokeText">🌸 加载笑话中...</span>
+        </div>
+
+        <!-- 日志 -->
+        <div class="card log-card" id="logContainer">
+            <div id="logContent"><span class="entry"><span class="time">[--:--:--]</span>🌸 等待扫描指令 ...</span></div>
+        </div>
+
+        <!-- 完成横幅 -->
+        <div class="complete-banner" id="doneBanner">
+            ✨ 扫描完成！星尘已收集 ✨
+            <span id="doneLinks"></span>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            // ===== 生成雪花 =====
+            const snowContainer = document.getElementById('snow-container');
+            // 手机低性能设备减少雪花数量（matchMedia 不可用时用 innerWidth 兜底，
+            // 避免这一行抛错导致整个 IIFE 中断、后续轮询逻辑全不执行）
+            const isMobile = (window.matchMedia
+                ? window.matchMedia('(max-width: 600px)').matches
+                : (window.innerWidth || 1024) <= 600);
+            const flakes = isMobile ? 35 : 70;
+            const colors = ['pink', 'blue', 'purple'];
+            const symbols = ['❄', '❅', '❆', '✦', '•'];
+            for (let i = 0; i < flakes; i++) {
+                const flake = document.createElement('div');
+                flake.className = 'snowflake';
+                flake.classList.add(colors[Math.floor(Math.random() * colors.length)]);
+                const size = Math.random() * 16 + 10;
+                flake.style.fontSize = size + 'px';
+                flake.style.left = Math.random() * 100 + '%';
+                flake.style.opacity = Math.random() * 0.6 + 0.4;
+                flake.style.animationDuration = (Math.random() * 10 + 8) + 's';
+                flake.style.animationDelay = (Math.random() * -25) + 's';
+                flake.textContent = symbols[Math.floor(Math.random() * symbols.length)];
+                snowContainer.appendChild(flake);
+            }
+
+            // ===== DOM 引用 =====
+            const ringFg = document.getElementById('ringFg');
+            const ringLabel = document.getElementById('ringLabel');
+            const qVerified = document.getElementById('qVerified');
+            const qRate = document.getElementById('qRate');
+            const qElapsed = document.getElementById('qElapsed');
+            const qRemain = document.getElementById('qRemain');
+            const qSendRate = document.getElementById('qSendRate');
+            const qRecvRate = document.getElementById('qRecvRate');
+            const statusDot = document.getElementById('statusDot');
+            const statusText = document.getElementById('statusText');
+            const doneBanner = document.getElementById('doneBanner');
+            const logContent = document.getElementById('logContent');
+            const logContainer = document.getElementById('logContainer');
+            const jokeText = document.getElementById('jokeText');
+
+            const stageBars = ['st1','st2','st3','st4','st5','st6'].map(id => document.getElementById(id));
+            const stagePcts = ['pct1','pct2','pct3','pct4','pct5','pct6'].map(id => document.getElementById(id));
+            const stageIcons = ['ic1','ic2','ic3','ic4','ic5','ic6'].map(id => document.getElementById(id));
+            const stageRows = document.querySelectorAll('.stage-row');
+
+            const cpuVal = document.getElementById('cpuVal');
+            const memVal = document.getElementById('memVal');
+            const netVal = document.getElementById('netVal');
+            const threadVal = document.getElementById('threadVal');
+            const cpuBar = document.getElementById('cpuBar');
+            const memBar = document.getElementById('memBar');
+            const netBar = document.getElementById('netBar');
+            const threadBar = document.getElementById('threadBar');
+
+            // ===== 备用笑话库 =====
+            const fallbackJokes = [
+                "今天天气真好，我的心情却像被猫抓过的毛线球。",
+                "为什么手机总是没电？因为它太'放电'了。",
+                "我最近在练一种功夫——'拖延症'，已经练到炉火纯青，明天再练。",
+                "人生就像心电图，一帆风顺就说明你挂了。",
+                "最远的距离不是天涯海角，而是我在你面前，你却低头玩手机。",
+                "我问冰箱：你为什么总是这么冷？冰箱说：因为我要保持冷静。",
+                "昨天梦到自己变成了一串代码，醒来发现……我还是单身。",
+                "为什么鱼总是那么聪明？因为它们在课本里游来游去。",
+                "如果倒霉是一种颜色，那我肯定是彩虹。",
+                "我一紧张就容易脸红，所以每次考试都像苹果。",
+                "为什么时钟总是走个不停？因为它不想被时间追上。",
+                "第一次去健身房，教练问我目标是什么？我说：我想变成一道闪电。教练说：那你要先学会劈叉。",
+                "今天路上捡到一张彩票，结果发现是昨天的。",
+                "最怕空气突然安静，最怕朋友突然的关心——是不是又要借钱？",
+                "我每天靠'喝热水'治百病，现在水壶都怕我了。",
+                "为什么电脑总是爱生病？因为它有太多'病毒'。",
+                "我决定做一个自律的人，每天早起，然后继续躺下。",
+                "吃火锅的时候，我总觉得自己是个'涮'才。",
+                "为什么星星不经常眨眼？因为它们戴了隐形眼镜。",
+                "世界上最遥远的距离，是我和快递之间的距离——'正在派送中'。",
+                "每次想早起时，被窝都对我说：再睡五分钟，就五分钟……然后天就黑了。",
+                "数学老师问：1+1=？ 我回答：窗口。老师懵了，我说：因为'窗'字里有'囱'。",
+                "我最大的优点就是——我很有自知之明，知道自己没优点。",
+                "为什么香蕉总是弯的？因为它不想被扶直。",
+                "今天又变胖了，但我告诉自己：这是'可爱到膨胀'。",
+                "每次看到别人晒美食，我就打开外卖软件，假装自己也吃了。",
+                "为什么猫喜欢坐在键盘上？因为想让你'喵'一下。",
+                "人生最长的路，就是外卖小哥的'已取餐'到'已送达'。",
+                "如果我是一本书，那一定是《等待戈多》——因为总是在等。",
+                "为什么下雨天容易忧郁？因为天空在'低气压'情绪。"
+            ];
+
+            // ===== 笑话获取 =====
+            async function fetchAndShowJoke() {
+                try {
+                    jokeText.textContent = '🌸 加载中...';
+                    const resp = await fetch('/joke');
+                    if (!resp.ok) throw new Error('API 异常');
+                    const data = await resp.json();
+                    if (data && data.joke) {
+                        jokeText.textContent = '🌸 ' + data.joke;
+                        return;
+                    }
+                    throw new Error('无笑话');
+                } catch (e) {
+                    console.warn('笑话接口异常，使用备用库');
+                    const idx = Math.floor(Math.random() * fallbackJokes.length);
+                    jokeText.textContent = '🌸 ' + fallbackJokes[idx];
+                } finally {
+                    jokeText.style.animation = 'none';
+                    void jokeText.offsetWidth;
+                    jokeText.style.animation = 'fadeInJoke 0.6s ease';
+                }
+            }
+            fetchAndShowJoke();
+            setInterval(fetchAndShowJoke, 120000);
+
+            // ===== 模拟数据 =====
+            let simProgress = 0;
+            let simVerified = 0;
+            let stageProgress = [0,0,0,0,0,0];
+            let stageStatus = ['waiting','waiting','waiting','waiting','waiting','waiting'];
+            let logEntries = [];
+            let elapsedSeconds = 0;
+
+            function generateSimData() {
+                if (simProgress < 100) {
+                    simProgress += Math.random() * 4 + 1;
+                    simProgress = Math.min(100, simProgress);
+                }
+                simVerified = Math.round(simProgress * 50 + Math.random() * 30);
+
+                const totalStages = 6;
+                const stageSpan = 100 / totalStages;
+                for (let i = 0; i < totalStages; i++) {
+                    const lower = i * stageSpan;
+                    const upper = (i + 1) * stageSpan;
+                    if (simProgress >= upper) {
+                        stageProgress[i] = 100;
+                        stageStatus[i] = 'done';
+                    } else if (simProgress > lower) {
+                        stageProgress[i] = ((simProgress - lower) / stageSpan) * 100;
+                        stageStatus[i] = 'active';
+                    } else {
+                        stageProgress[i] = 0;
+                        stageStatus[i] = 'waiting';
+                    }
+                }
+
+                if (logEntries.length < 25 && Math.random() < 0.25) {
+                    const msgs = [
+                        '扫描 1.2.3.0/24 网段...',
+                        '发现 5 个开放端口',
+                        '缓存写入完成',
+                        '元数据查询中...',
+                        '测速任务启动',
+                        '报告生成中...'
+                    ];
+                    const time = new Date().toTimeString().slice(0,8);
+                    logEntries.push({ time, message: msgs[Math.floor(Math.random() * msgs.length)] });
+                    if (logEntries.length > 35) logEntries.shift();
+                }
+
+                const p = simProgress / 100;
+                const cpu = 10 + 70 * p * (0.8 + 0.4 * Math.sin(Date.now() / 3000));
+                const mem = 20 + 60 * p * (0.9 + 0.2 * Math.cos(Date.now() / 5000));
+                const net = 5 + 45 * (1 - p) * (0.7 + 0.3 * Math.sin(Date.now() / 2000));
+                const thread = Math.round(4 + 20 * p * (0.8 + 0.2 * Math.sin(Date.now() / 4000)));
+                const sendBase = 20 + 80 * p;
+                const recvBase = 10 + 60 * p;
+                const send = Math.round(sendBase + 15 * Math.sin(Date.now() / 1500));
+                const recv = Math.round(recvBase + 10 * Math.cos(Date.now() / 1800));
+
+                elapsedSeconds += 2;
+                const mins = String(Math.floor(elapsedSeconds / 60)).padStart(2,'0');
+                const secs = String(elapsedSeconds % 60).padStart(2,'0');
+                const elapsedStr = mins + ':' + secs;
+                const remain = simProgress > 0 ? Math.round(((100 - simProgress) / simProgress) * elapsedSeconds) : 0;
+                const remainStr = remain > 60 ? Math.floor(remain/60)+'m'+String(remain%60).padStart(2,'0')+'s' : remain + 's';
+
+                return {
+                    total_progress: simProgress,
+                    verified_count: simVerified,
+                    elapsed: elapsedStr,
+                    remaining: remainStr,
+                    status: simProgress >= 100 ? 'done' : (simProgress > 0 ? 'running' : 'waiting'),
+                    stages: stageProgress.map((p, idx) => ({
+                        progress: p,
+                        status: stageStatus[idx]
+                    })),
+                    logs: logEntries.slice(-25),
+                    sys: { cpu, mem, net, thread, send, recv }
+                };
+            }
+
+            // ===== 更新 UI =====
+            function updateUI(data) {
+                if (!data) return;
+                try {
+                    updateCore(data);
+                } catch (e) {
+                    console.warn('updateCore 异常:', e);
+                }
+                try {
+                    updateStages(data);
+                } catch (e) {
+                    console.warn('updateStages 异常:', e);
+                }
+                try {
+                    updateLogs(data);
+                } catch (e) {
+                    console.warn('updateLogs 异常:', e);
+                }
+                try {
+                    updateSys(data);
+                } catch (e) {
+                    console.warn('updateSys 异常:', e);
+                }
+            }
+            function updateCore(data) {
+                const total = Math.min(100, Math.max(0, data.total_progress || 0));
+                const pct = Math.round(total);
+                ringLabel.textContent = pct + '%';
+                const circ = 314.16;
+                ringFg.style.strokeDashoffset = circ - (pct / 100) * circ;
+
+                const verified = data.verified_count || 0;
+                const elapsed = data.elapsed || '--';
+                const remain = data.remaining || '--';
+                // 扫描速率：后端实时写入的 kpps（masscan 输出）
+                const rateRaw = data.rate || 0;
+                const rate = rateRaw >= 1 ? rateRaw.toFixed(2) + ' kpps' : Math.round(rateRaw * 1000) + ' pps';
+
+                const qs = [qVerified, qRate, qElapsed, qRemain, qSendRate, qRecvRate];
+                const fmtPps = v => v >= 1000 ? (v/1000).toFixed(2) + ' kpps' : Math.round(v) + ' pps';
+                const sysd = data.sys || {};
+                const vals = [verified, rate, elapsed, remain, 
+                              fmtPps(sysd.send || 0), fmtPps(sysd.recv || 0)];
+                qs.forEach((el, idx) => {
+                    const newVal = String(vals[idx]);
+                    if (el.textContent !== newVal) {
+                        el.classList.remove('updated');
+                        void el.offsetWidth;
+                        el.classList.add('updated');
+                        el.textContent = newVal;
+                    }
+                });
+
+                // ASN 标签：逐个条目生成独立 span，
+                // 每个 span 内部 nowrap，容器 flex-wrap，
+                // 放不下时整个 ASN / IP 段一起换到下一行，不会被拆开
+                const asnTag = document.getElementById('asnTag');
+                if (asnTag && data.asn && data.asn.length) {
+                    const key = data.asn.join(',');
+                    if (asnTag.dataset.key !== key) {
+                        asnTag.dataset.key = key;
+                        asnTag.textContent = '';
+                        data.asn.forEach(function(v, i) {
+                            const sp = document.createElement('span');
+                            sp.className = 'asn-item';
+                            // 首项带 "ASN " 前缀；纯 IP 段（含 . 或 /）不加前缀
+                            const isNet = String(v).indexOf('.') >= 0 || String(v).indexOf(':') >= 0;
+                            sp.textContent = (i === 0 && !isNet ? 'ASN ' : '') + v
+                                           + (i < data.asn.length - 1 ? ',' : '');
+                            asnTag.appendChild(sp);
+                        });
+                        asnTag.classList.add('show');
+                    }
+                }
+
+                if (data.status === 'running') {
+                    statusDot.className = 'dot';
+                    statusText.textContent = '扫描中 💫';
+                } else if (data.status === 'done') {
+                    statusDot.className = 'dot done';
+                    statusText.textContent = '已完成 ✨';
+                    doneBanner.style.display = 'block';
+                    // 渲染报告下载链接（优先具体文件，回退结果列表）
+                    const dlBox = document.getElementById('doneLinks');
+                    if (dlBox) {
+                        let links = '';
+                        if (data.report_files && data.report_files.length) {
+                            data.report_files.forEach(f => {
+                                links += '<a href="/' + f + '" download>' + f + '</a>';
+                            });
+                        }
+                        links += '<a href="/results">全部结果</a>';
+                        dlBox.innerHTML = links;
+                    }
+                } else {
+                    statusDot.className = 'dot idle';
+                    statusText.textContent = '待命 🌸';
+                }
+            }
+
+            
+            function updateStages(data) {
+                if (data.stages && data.stages.length) {
+                    data.stages.forEach((st, idx) => {
+                        if (idx >= stageBars.length) return;
+                        const bar = stageBars[idx];
+                        const pctEl = stagePcts[idx];
+                        const icon = stageIcons[idx];
+                        const row = stageRows[idx];
+                        if (!bar || !pctEl || !icon || !row) return;
+                        const val = Math.min(100, Math.max(0, st.progress || 0));
+                        bar.style.width = val + '%';
+                        pctEl.textContent = val.toFixed(2) + '%';
+                        bar.className = 's-bar';
+                        icon.className = 's-icon';
+                        row.classList.remove('done');
+                        if (st.status === 'active') {
+                            bar.classList.add('active');
+                            icon.classList.add('active');
+                            icon.textContent = '🌟';
+                        } else if (st.status === 'done') {
+                            icon.classList.add('done');
+                            icon.textContent = '✨';
+                            row.classList.add('done');
+                        } else {
+                            icon.textContent = '🌸';
+                        }
+                    });
+                }
+            }
+            function updateLogs(data) {
+                if (data.logs && data.logs.length) {
+                    let html = '';
+                    data.logs.forEach(entry => {
+                        const time = entry.time || '--:--:--';
+                        let msg = entry.message || '';
+                        let cls = '';
+                        if (msg.includes('错误') || msg.includes('失败')) cls = 'err';
+                        else if (msg.includes('完成') || msg.includes('成功')) cls = 'done';
+                        else if (msg.includes('扫描') || msg.includes('发现')) cls = 'info';
+                        else cls = 'warn';
+                        html += '<span class="entry"><span class="time">[' + time + ']</span><span class="' + cls + '">' + msg + '</span></span>';
+                    });
+                    logContent.innerHTML = html;
+                    logContainer.scrollTop = logContainer.scrollHeight;
+                }
+            }
+            function updateSys(data) {
+                const s = data.sys || {};
+                if (s && (s.cpu !== undefined)) {
+                    cpuVal.textContent = Math.round(s.cpu) + '%';
+                    memVal.textContent = Math.round(s.mem) + '%';
+                    netVal.textContent = Math.round(s.net * 0.6 + 20) + 'ms';
+                    threadVal.textContent = s.thread;
+                    cpuBar.style.width = s.cpu + '%';
+                    memBar.style.width = s.mem + '%';
+                    netBar.style.width = (s.net * 0.6 + 20) / 100 * 100 + '%';
+                    threadBar.style.width = (s.thread / 30 * 100) + '%';
+                }
+            }
+
+// ===== 启动模拟 =====
+            function startSimulation() {
+                const initData = generateSimData();
+                if (logEntries.length === 0) {
+                    const now = new Date().toTimeString().slice(0,8);
+                    logEntries.push({ time: now, message: '扫描任务初始化...' });
+                    setTimeout(() => {
+                        const now2 = new Date().toTimeString().slice(0,8);
+                        logEntries.push({ time: now2, message: '开始扫描 ASN 列表' });
+                    }, 500);
+                }
+                updateUI(generateSimData());
+                setInterval(() => {
+                    updateUI(generateSimData());
+                }, 2000);
+            }
+
+            // ===== 尝试真实接口 =====
+            function fetchRealData() {
+                fetch('/progress.json')
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data && Object.keys(data).length > 0) {
+                            updateUI(data);
+                            setInterval(() => {
+                                fetch('/progress.json').then(r => r.json()).then(updateUI).catch(() => {});
+                            }, 2000);
+                        } else {
+                            startSimulation();
+                        }
+                    })
+                    .catch(() => {
+                        startSimulation();
+                    });
+            }
+
+            // 启用真实数据接口（progress.json 无数据时自动回退模拟）
+            fetchRealData();
+        })();
+    </script>
+</body>
+</html>

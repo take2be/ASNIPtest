@@ -1,0 +1,17 @@
+# Cloudflare 官方 ASN 清单
+# 一行一个，AS 前缀可选
+# 来源：https://developers.cloudflare.com/ip-ranges/
+# 更新日期：2026-07
+AS13335
+AS395747
+AS132892
+AS202623
+AS133877
+AS139242
+AS203898
+AS394536
+AS400095
+AS14789
+AS209242
+AS204829
+AS200242
